@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "django_filters",
+    "drf_spectacular",
     "companies",
     "geo",
     "products",
@@ -147,6 +148,27 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
     ],
     "PAGE_SIZE": 20,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+
+# --- API dokümantasyonu (drf-spectacular) ---
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Sağlık Kurumları Anlaşma Takip Sistemi API",
+    "DESCRIPTION": (
+        "Sigorta şirketlerinin (AXA, HDI, Acıbadem, Türkiye, Anadolu, Allianz, Mapfre) "
+        "TSS/ÖSS ürünlerinde anlaşmalı olduğu sağlık kurumlarını sorgulamak için Next.js "
+        "backend'inin kullandığı salt-okunur API. Tüm endpoint'ler "
+        "`Authorization: Bearer <NEXTJS_MASTER_TOKEN>` header'ı gerektirir."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": r"/api/v1",
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+        "displayRequestDuration": True,
+    },
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 

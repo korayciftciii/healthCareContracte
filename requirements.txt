@@ -7,3 +7,4 @@ psycopg2-binary>=2.9
 requests>=2.32
 gunicorn>=22.0
 whitenoise>=6.7
+drf-spectacular>=0.27

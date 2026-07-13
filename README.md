@@ -179,6 +179,21 @@ GET /api/v1/product-types/
 GET /api/v1/institution-types/
 ```
 
+### 6.1 Swagger / OpenAPI dokümantasyonu
+
+`drf-spectacular` ile otomatik üretiliyor, kod değiştikçe kendiliğinden güncel kalır:
+
+| URL | Ne işe yarar |
+|---|---|
+| `/api/docs/` | **Swagger UI** — interaktif, sağ üstteki "Authorize" butonuna `NEXTJS_MASTER_TOKEN`'ı girip endpoint'leri tarayıcıdan gerçekten çağırabilirsin ("Try it out") |
+| `/api/redoc/` | **Redoc** — salt-okunur, daha sade/okunaklı statik dokümantasyon görünümü |
+| `/api/schema/` | Ham OpenAPI 3 şeması (YAML) — Next.js tarafında TypeScript tip üretimi (`openapi-typescript` vb.) için kullanılabilir |
+
+Next.js tarafında tip-güvenli client üretmek istersen:
+```bash
+npx openapi-typescript https://api.sigortafi.net/api/schema/ -o types/api.ts
+```
+
 ---
 
 ## 7. Ortam değişkenleri (`.env`)
