@@ -1,0 +1,10 @@
+services:
+  web:
+    build: .
+    env_file: .env
+    # Hestia'daki Postgres host'ta çalışıyor (container içinde değil). Host
+    # network kullanmak, container'ın 127.0.0.1 üzerinden host'taki Postgres'e
+    # doğrudan erişmesini sağlar — pg_hba.conf/listen_addresses'te docker
+    # bridge subneti için ayrıca izin açmaya gerek kalmaz. Linux'a özgüdür.
+    network_mode: host
+    restart: unless-stopped
