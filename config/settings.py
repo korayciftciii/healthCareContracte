@@ -81,9 +81,24 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database
-DATABASES = {
-    "default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
-}
+# Ayrık DB_* değişkenleri tercih edilir — DATABASE_URL tek bir string olduğu için
+# şifredeki özel karakterler (/, #, ?, | vb.) URL parse'ını kırabiliyor (yaşandı).
+# DB_NAME verilmişse onlar kullanılır, yoksa DATABASE_URL'e (yerel geliştirme) düşülür.
+if env("DB_NAME", default=""):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": env("DB_NAME"),
+            "USER": env("DB_USER"),
+            "PASSWORD": env("DB_PASSWORD"),
+            "HOST": env("DB_HOST", default="127.0.0.1"),
+            "PORT": env("DB_PORT", default="5432"),
+        }
+    }
+else:
+    DATABASES = {
+        "default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
+    }
 
 
 # Password validation
