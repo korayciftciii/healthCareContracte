@@ -7,6 +7,7 @@ from geo.models import City, District
 from institutions.models import HealthInstitution
 from products.models import InstitutionType, ProductType
 
+from .filters import HealthInstitutionFilter
 from .serializers import (
     CitySerializer,
     DistrictSerializer,
@@ -156,9 +157,11 @@ class NetworkViewSet(viewsets.ReadOnlyModelViewSet):
                 "TANI_GORUNTULEME, EVDE_BAKIM, DOKTOR.",
             ),
             OpenApiParameter(
-                "networks", int,
+                "networks", str,
                 description="Network id'sine göre filtrele (networks/ endpoint'inden gelen `id`). "
-                "Şirket seçilmemişse anlamsızdır; company__code ile birlikte kullanılmalı.",
+                "Virgülle ayrılmış birden fazla id kabul eder (örn. `networks=25,26`) — herhangi "
+                "birine sahip kurumlar döner. Şirket seçilmemişse anlamsızdır; company__code ile "
+                "birlikte kullanılmalı.",
             ),
             OpenApiParameter("search", str, description="Kurum adı/adresinde serbest metin arama."),
         ],
@@ -168,15 +171,8 @@ class NetworkViewSet(viewsets.ReadOnlyModelViewSet):
 class HealthInstitutionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HealthInstitution.objects.select_related(
         "company", "product_type", "institution_type", "city", "district"
-    ).prefetch_related("networks").filter(is_active=True)
+    ).prefetch_related("networks").filter(is_active=True).distinct()
     serializer_class = HealthInstitutionSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = {
-        "company__code": ["exact"],
-        "city__plate_code": ["exact"],
-        "district": ["exact"],
-        "product_type__code": ["exact"],
-        "institution_type__code": ["exact"],
-        "networks": ["exact"],
-    }
+    filterset_class = HealthInstitutionFilter
     search_fields = ["name", "address"]
