@@ -6,6 +6,7 @@ from .views import (
     HealthInstitutionViewSet,
     InstitutionTypeViewSet,
     InsuranceCompanyViewSet,
+    NetworkViewSet,
     ProductTypeViewSet,
 )
 
@@ -16,5 +17,6 @@ router.register("cities", CityViewSet, basename="city")
 router.register("districts", DistrictViewSet, basename="district")
 router.register("product-types", ProductTypeViewSet, basename="product-type")
 router.register("institution-types", InstitutionTypeViewSet, basename="institution-type")
+router.register("networks", NetworkViewSet, basename="network")
 
 urlpatterns = router.urls

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from companies.models import InsuranceCompany
+from companies.models import InsuranceCompany, Network
 from geo.models import City, District
 from institutions.models import HealthInstitution
 from products.models import InstitutionType, ProductType
@@ -10,6 +10,15 @@ class InsuranceCompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = InsuranceCompany
         fields = ["id", "name", "code", "slug", "is_active"]
+
+
+class NetworkSerializer(serializers.ModelSerializer):
+    company = serializers.SlugRelatedField(slug_field="code", read_only=True)
+    product_type = serializers.SlugRelatedField(slug_field="code", read_only=True)
+
+    class Meta:
+        model = Network
+        fields = ["id", "name", "company", "product_type", "shown_by_default"]
 
 
 class CitySerializer(serializers.ModelSerializer):
@@ -44,6 +53,7 @@ class HealthInstitutionSerializer(serializers.ModelSerializer):
     )
     city = serializers.SlugRelatedField(slug_field="name", read_only=True, allow_null=True)
     district = serializers.SlugRelatedField(slug_field="name", read_only=True, allow_null=True)
+    networks = NetworkSerializer(many=True, read_only=True)
 
     class Meta:
         model = HealthInstitution
@@ -60,6 +70,7 @@ class HealthInstitutionSerializer(serializers.ModelSerializer):
             "institution_type",
             "city",
             "district",
+            "networks",
             "is_active",
             "last_seen_at",
         ]

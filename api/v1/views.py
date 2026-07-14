@@ -2,7 +2,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import filters, viewsets
 
-from companies.models import InsuranceCompany
+from companies.models import InsuranceCompany, Network
 from geo.models import City, District
 from institutions.models import HealthInstitution
 from products.models import InstitutionType, ProductType
@@ -13,6 +13,7 @@ from .serializers import (
     HealthInstitutionSerializer,
     InstitutionTypeSerializer,
     InsuranceCompanySerializer,
+    NetworkSerializer,
     ProductTypeSerializer,
 )
 
@@ -103,6 +104,33 @@ class InstitutionTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
 @extend_schema_view(
     list=extend_schema(
+        summary="Network'leri listele",
+        description="Bir sigorta şirketinin bir ürün tipi (TSS/ÖSS) içindeki alt-kapsam "
+        "tier'ları (örn. AXA TSS için 'Sağlığım Tamam' / 'Tutumlu'). Aynı şirketin TSS "
+        "ve ÖSS network'leri tamamen farklıdır. `?company__code=` ve `?product_type__code=` "
+        "ile filtrelenir. Bazı şirketlerin (örn. Mapfre) hiç network'ü yoktur.",
+        tags=["Referans Veriler"],
+        parameters=[
+            OpenApiParameter("company__code", str, description="Şirket kodu."),
+            OpenApiParameter("product_type__code", str, description="TSS veya OSS."),
+        ],
+    ),
+    retrieve=extend_schema(summary="Tek bir network'ün detayı", tags=["Referans Veriler"]),
+)
+class NetworkViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Network.objects.select_related("company", "product_type").all()
+    serializer_class = NetworkSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = {
+        "company__code": ["exact"],
+        "product_type__code": ["exact"],
+    }
+    search_fields = ["name"]
+    pagination_class = None
+
+
+@extend_schema_view(
+    list=extend_schema(
         summary="Anlaşmalı sağlık kurumlarını sorgula",
         description=(
             "Sigorta şirketi, il, ilçe, ürün tipi ve kurum tipine göre filtrelenebilen "
@@ -127,6 +155,11 @@ class InstitutionTypeViewSet(viewsets.ReadOnlyModelViewSet):
                 description="HASTANE, TIP_MERKEZI, DIS, OPTIK, MEDIKAL, FIZIK_TEDAVI, "
                 "TANI_GORUNTULEME, EVDE_BAKIM, DOKTOR.",
             ),
+            OpenApiParameter(
+                "networks", int,
+                description="Network id'sine göre filtrele (networks/ endpoint'inden gelen `id`). "
+                "Şirket seçilmemişse anlamsızdır; company__code ile birlikte kullanılmalı.",
+            ),
             OpenApiParameter("search", str, description="Kurum adı/adresinde serbest metin arama."),
         ],
     ),
@@ -135,7 +168,7 @@ class InstitutionTypeViewSet(viewsets.ReadOnlyModelViewSet):
 class HealthInstitutionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HealthInstitution.objects.select_related(
         "company", "product_type", "institution_type", "city", "district"
-    ).filter(is_active=True)
+    ).prefetch_related("networks").filter(is_active=True)
     serializer_class = HealthInstitutionSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = {
@@ -144,5 +177,6 @@ class HealthInstitutionViewSet(viewsets.ReadOnlyModelViewSet):
         "district": ["exact"],
         "product_type__code": ["exact"],
         "institution_type__code": ["exact"],
+        "networks": ["exact"],
     }
     search_fields = ["name", "address"]

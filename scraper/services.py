@@ -3,7 +3,7 @@ import time
 from django.utils import timezone
 from django.utils.text import slugify
 
-from companies.models import InsuranceCompany
+from companies.models import InsuranceCompany, Network
 from geo.models import City, District
 from institutions.models import HealthInstitution
 from products.models import InstitutionType, ProductType
@@ -176,6 +176,20 @@ class ScrapeJobRunner:
                 "raw_payload": item,
             },
         )
+
+        # item["network_ids"] platformdaki TÜM şirketlerin network id'lerini
+        # karışık halde içerir (bir kurum birden fazla sigorta şirketiyle anlaşmalı
+        # olabilir) — bu yüzden sadece taranan (company, product_type) kapsamındaki
+        # Network'lerle eşleştiriyoruz, diğer şirketlere ait id'ler otomatik elenir.
+        network_ids = item.get("network_ids") or []
+        if network_ids:
+            matched_networks = Network.objects.filter(
+                company=company, product_type=product_type, external_id__in=network_ids
+            )
+            obj.networks.set(matched_networks)
+        else:
+            obj.networks.clear()
+
         if created:
             job.created_count += 1
         else:

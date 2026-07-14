@@ -16,8 +16,9 @@ class HealthInstitutionAdmin(ModelAdmin):
         "is_active",
         "last_seen_at",
     )
-    list_filter = ("company", "product_type", "institution_type", "city", "is_active")
+    list_filter = ("company", "product_type", "institution_type", "city", "networks", "is_active")
     search_fields = ("name", "address")
     list_select_related = ("company", "product_type", "institution_type", "city", "district")
     autocomplete_fields = ("city", "district")
+    filter_horizontal = ("networks",)
     readonly_fields = ("raw_payload", "last_scrape_job", "last_seen_at", "created_at", "updated_at")
