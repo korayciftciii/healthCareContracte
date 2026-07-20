@@ -31,5 +31,5 @@ python manage.py migrate --noinput
 echo "Statik dosyalar toplaniyor..."
 python manage.py collectstatic --noinput
 
-echo "Baslatiliyor: gunicorn (port ${GUNICORN_PORT:-8000})..."
-exec gunicorn config.wsgi:application --bind "0.0.0.0:${GUNICORN_PORT:-8000}" --workers 3
+echo "Baslatiliyor: daphne (port ${GUNICORN_PORT:-8000})..."
+exec daphne -b 0.0.0.0 -p "${GUNICORN_PORT:-8000}" config.asgi:application
