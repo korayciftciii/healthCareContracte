@@ -2,210 +2,249 @@ import os
 import requests
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 from django.utils.text import slugify
-from institutions.models import HealthInstitution, InstitutionContract
-from products.models import ProductType, InstitutionType
-from companies.models import InsuranceCompany, Network
+from institutions.models import HealthInstitution
+from products.models import InstitutionType
 from geo.models import Province, District
+from scraper.models import ScrapeJob
 
 
 class Command(BaseCommand):
-    help = "Mevcut sistemden API üzerinden kurumları çek ve yeni DB'ye migrate et"
+    help = (
+        "Eski sistemden (sigortafi.net) API üzerinden kurumları çek ve HealthInstitution "
+        "tablosunu doldur. Aynı fiziksel kurum, eski sistemde her sigorta şirketi/network "
+        "kombinasyonu için ayrı kayıt olarak geldiğinden (bkz. company alanı), burada "
+        "şirket/network bilgisi kullanılmaz — sadece il/ilçe/isim bazlı dublikeler "
+        "birleştirilip TEK kurum kaydı olarak içeri alınır. Şirket-kurum ilişkileri "
+        "(InstitutionContract, Network) ayrı scraper'lar tarafından doldurulacaktır."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--city-plate-code",
             type=int,
-            help="Spesifik bir şehir için migrate et (1-81)",
+            help="Spesifik bir il için migrate et (1-81)",
         )
 
     def handle(self, *args, **options):
         token = os.getenv("API_TOKEN")
         if not token:
-            self.stdout.write(self.style.ERROR("✗ NEXTJS_MASTER_TOKEN env'de tanımlanmadı"))
+            self.stdout.write(self.style.ERROR("✗ API_TOKEN env'de tanımlanmadı"))
             return
 
         base_url = "https://api.sigortafi.net/api/v1/institutions"
         headers = {"Authorization": f"Bearer {token}", "accept": "application/json"}
 
-        total_migrated = 0
-        total_errors = 0
-        duplicates_handled = 0
+        plate_arg = options.get("city_plate_code")
+        province_plate_codes = [f"{plate_arg:02d}"] if plate_arg else [f"{i:02d}" for i in range(1, 82)]
 
-        # İlleri seç
-        province_plate_codes = [f"{i:02d}" for i in range(1, 82)]
-        if options.get("city_plate_code"):
-            province_plate_codes = [f"{options['city_plate_code']:02d}"]
+        job = ScrapeJob.objects.create(
+            source_key="migration",
+            status=ScrapeJob.Status.RUNNING,
+            started_at=timezone.now(),
+            request_params={
+                "command": "migrate_institutions_from_api",
+                "city_plate_code": plate_arg or "ALL (1-81)",
+            },
+        )
+        self.job = job
+        self.log(f"Migration başlatıldı. PID: {os.getpid()}. İller: {province_plate_codes}")
+
+        total_created = 0
+        total_updated = 0
+        total_errors = 0
+        total_duplicates_merged = 0
 
         for plate_code in province_plate_codes:
             try:
                 province = Province.objects.get(plate_code=plate_code)
             except Province.DoesNotExist:
-                self.stdout.write(self.style.WARNING(f"⚠ İl bulunamadı: plate_code={plate_code}"))
+                self.log(f"⚠ İl bulunamadı: plate_code={plate_code}", "warning")
                 continue
 
-            # API'den kurumları çek (API hala city__plate_code kullanıyor)
-            url = f"{base_url}/?city__plate_code={int(plate_code)}"
-            try:
-                response = requests.get(url, headers=headers, timeout=10)
-                response.raise_for_status()
-            except requests.RequestException as e:
-                self.stdout.write(self.style.ERROR(f"✗ API hatası ({province.name}): {str(e)}"))
+            self.log(f"📍 {province.name}: API'den çekiliyor...")
+            results = self.fetch_all_pages(base_url, plate_code, headers, province.name)
+            if results is None:
                 total_errors += 1
                 continue
 
-            try:
-                api_response = response.json()
-            except ValueError:
-                self.stdout.write(self.style.ERROR(f"✗ API JSON decode hatası ({province.name})"))
-                total_errors += 1
-                continue
+            self.log(f"📍 {province.name}: {len(results)} kayıt bulundu (dublike dahil)")
 
-            # Sonuçları çıkar (paginated veya direkt liste)
-            if isinstance(api_response, dict):
-                results = api_response.get("results", [])
-            elif isinstance(api_response, list):
-                results = api_response
-            else:
-                self.stdout.write(self.style.WARNING(f"⚠ Beklenmeyen API format ({province.name})"))
-                continue
+            merged = self.merge_duplicates(results)
+            duplicates_in_province = len(results) - len(merged)
+            total_duplicates_merged += duplicates_in_province
+            self.log(
+                f"📍 {province.name}: {len(merged)} tekil kurum "
+                f"({duplicates_in_province} dublike birleştirildi)"
+            )
 
-            self.stdout.write(f"📍 {province.name}: {len(results)} kurum bulundu")
-
-            for inst_data in results:
+            province_created = 0
+            province_updated = 0
+            for inst_data in merged.values():
                 try:
                     with transaction.atomic():
-                        # İl ve ilçeyi eşleştir
-                        province_obj = province
-                        district_obj = None
-
-                        if inst_data.get("district"):
-                            try:
-                                district_obj = District.objects.get(
-                                    province=province_obj,
-                                    name__iexact=inst_data["district"].strip(),
-                                )
-                            except District.DoesNotExist:
-                                self.stdout.write(
-                                    self.style.WARNING(
-                                        f"⚠ İlçe bulunamadı: {inst_data.get('name')} - {inst_data['district']}"
-                                    )
-                                )
-
-                        # Slug oluştur (deduplicate_institutions.py mantığı)
-                        inst_name = inst_data.get("name", "").strip()
-                        province_name = province_obj.name
-                        district_name = district_obj.name if district_obj else ""
-
-                        # Base slug
-                        slug = slugify(f"{inst_name}-{province_name}", allow_unicode=False)
-                        if len(slug) > 300:
-                            slug = slug[:300]
-
-                        # Duplicate slug kontrol (aynı ad+il+ilçe ama farklı kurum varsa)
-                        existing_by_slug = HealthInstitution.objects.filter(slug=slug).first()
-                        if existing_by_slug:
-                            if (
-                                existing_by_slug.name == inst_name
-                                and existing_by_slug.province_id == province_obj.id
-                                and existing_by_slug.district_id == (district_obj.id if district_obj else None)
-                            ):
-                                # Aynı kurum, güncelle
-                                pass
-                            else:
-                                # Farklı kurum, ilçe ile disambiguate
-                                extended_slug = slugify(
-                                    f"{inst_name}-{province_name}-{district_name}", allow_unicode=False
-                                )
-                                if len(extended_slug) > 300:
-                                    extended_slug = extended_slug[:300]
-                                slug = extended_slug
-                                duplicates_handled += 1
-
-                        # InstitutionType bul veya oluştur
-                        institution_type_code = inst_data.get("institution_type", "UNKNOWN")
-                        try:
-                            institution_type = InstitutionType.objects.get(code=institution_type_code)
-                        except InstitutionType.DoesNotExist:
-                            self.stdout.write(
-                                self.style.WARNING(f"⚠ InstitutionType bulunamadı: {institution_type_code}")
-                            )
-                            institution_type = None
-
-                        # HealthInstitution oluştur/güncelle
-                        health_inst, created = HealthInstitution.objects.update_or_create(
-                            slug=slug,
-                            defaults={
-                                "name": inst_name,
-                                "province": province_obj,
-                                "district": district_obj,
-                                "address": inst_data.get("address", ""),
-                                "phone": inst_data.get("phone", ""),
-                                "latitude": inst_data.get("latitude"),
-                                "longitude": inst_data.get("longitude"),
-                                "institution_type": institution_type,
-                                "is_active": inst_data.get("is_active", True),
-                                "raw_payload": inst_data,
-                            },
-                        )
-
-                        # Company ve ProductType bul
-                        company_code = inst_data.get("company")
-                        product_type_code = inst_data.get("product_type")
-
-                        try:
-                            company = InsuranceCompany.objects.get(code=company_code)
-                        except InsuranceCompany.DoesNotExist:
-                            self.stdout.write(
-                                self.style.WARNING(f"⚠ Şirket bulunamadı: {company_code}")
-                            )
-                            total_errors += 1
-                            continue
-
-                        try:
-                            product_type = ProductType.objects.get(code=product_type_code)
-                        except ProductType.DoesNotExist:
-                            self.stdout.write(
-                                self.style.WARNING(f"⚠ Ürün tipi bulunamadı: {product_type_code}")
-                            )
-                            total_errors += 1
-                            continue
-
-                        # InstitutionContract oluştur/güncelle
-                        external_id = str(inst_data.get("external_id", ""))
-                        contract, _ = InstitutionContract.objects.update_or_create(
-                            institution=health_inst,
-                            company=company,
-                            product_type=product_type,
-                            external_id=external_id,
-                            defaults={
-                                "is_active": inst_data.get("is_active", True),
-                                "last_seen_at": inst_data.get("last_seen_at"),
-                                "raw_payload": inst_data,
-                            },
-                        )
-
-                        # Networks ekle/güncelle
-                        for network_data in inst_data.get("networks", []):
-                            try:
-                                network = Network.objects.get(id=network_data["id"])
-                                contract.networks.add(network)
-                            except Network.DoesNotExist:
-                                self.stdout.write(
-                                    self.style.WARNING(
-                                        f"⚠ Network bulunamadı: {network_data.get('id')} ({network_data.get('name')})"
-                                    )
-                                )
-
-                        total_migrated += 1
-
+                        created = self.upsert_institution(province, inst_data)
+                        if created:
+                            total_created += 1
+                            province_created += 1
+                        else:
+                            total_updated += 1
+                            province_updated += 1
                 except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"✗ Kurum hatası: {inst_data.get('name')} - {str(e)}"))
+                    self.log(f"✗ Kurum hatası: {inst_data.get('name')} - {str(e)}", "error")
                     total_errors += 1
 
-        self.stdout.write("\n" + "=" * 60)
-        self.stdout.write(self.style.SUCCESS(f"✓ Toplam {total_migrated} kurum migrate edildi"))
-        if duplicates_handled > 0:
-            self.stdout.write(self.style.NOTICE(f"ℹ {duplicates_handled} duplicate slug'u ilçe ile disambiguate edildi"))
-        if total_errors > 0:
-            self.stdout.write(self.style.WARNING(f"⚠ {total_errors} hata oluştu"))
+            self.log(f"📍 {province.name}: {province_created} yeni, {province_updated} güncellendi")
+
+            # Her il sonunda ilerlemeyi DB'ye yaz (canlı log dosyası zaten anlık yazılıyor)
+            job.created_count = total_created
+            job.updated_count = total_updated
+            job.result_count = total_created + total_updated
+            job.save(update_fields=["created_count", "updated_count", "result_count", "log"])
+
+        self.log("=" * 60)
+        self.log(f"✓ {total_created} yeni kurum, {total_updated} güncellenen kurum", "success")
+        if total_duplicates_merged:
+            self.log(f"ℹ {total_duplicates_merged} dublike kayıt tek kuruma birleştirildi", "notice")
+        if total_errors:
+            self.log(f"⚠ {total_errors} hata oluştu", "warning")
+
+        job.created_count = total_created
+        job.updated_count = total_updated
+        job.result_count = total_created + total_updated
+        job.error_message = f"{total_errors} hata oluştu" if total_errors else ""
+        job.status = (
+            ScrapeJob.Status.FAILED if total_errors and job.result_count == 0
+            else ScrapeJob.Status.PARTIAL if total_errors
+            else ScrapeJob.Status.SUCCESS
+        )
+        job.finished_at = timezone.now()
+        job.save()
+
+    def log(self, message, level=None):
+        """Hem konsola hem ScrapeJob.log alanına + logs/MIGRATION/*.log dosyasına yazar.
+
+        Dosyaya yazım anlıktır (append_log), bu sayede admin'deki
+        'Canlı Log Takibi' (WebSocket) sekmesinden MIGRATION klasörü seçilip
+        bu script'in loğu gerçek zamanlı izlenebilir.
+        """
+        style_map = {
+            "error": self.style.ERROR,
+            "warning": self.style.WARNING,
+            "success": self.style.SUCCESS,
+            "notice": self.style.NOTICE,
+        }
+        self.stdout.write(style_map.get(level, lambda x: x)(message))
+        self.job.append_log(message)
+
+    def fetch_all_pages(self, base_url, plate_code, headers, province_name):
+        """API sayfalanmış (paginated) döner — 'next' bitene kadar tüm sayfaları toplar."""
+        results = []
+        url = f"{base_url}/?city__plate_code={int(plate_code)}"
+        page = 1
+        while url:
+            try:
+                response = requests.get(url, headers=headers, timeout=15)
+                response.raise_for_status()
+                payload = response.json()
+            except (requests.RequestException, ValueError) as e:
+                self.log(f"✗ API hatası ({province_name}, sayfa {page}): {str(e)}", "error")
+                return None
+
+            if isinstance(payload, dict):
+                results.extend(payload.get("results", []))
+                url = payload.get("next")
+            elif isinstance(payload, list):
+                results.extend(payload)
+                url = None
+            else:
+                self.log(f"⚠ Beklenmeyen API formatı ({province_name})", "warning")
+                url = None
+
+            self.job.pages_fetched += 1
+            page += 1
+
+        return results
+
+    @staticmethod
+    def normalize(value):
+        return (value or "").strip().casefold()
+
+    def merge_duplicates(self, results):
+        """Aynı fiziksel kurumun şirket bazlı tekrarlarını (isim + ilçe) tek kayda indirger.
+
+        Eski sistemde aynı kurum, her sigorta şirketi/network kombinasyonu için ayrı
+        satır olarak geliyor (örn. aynı hastane hem ACIBADEM hem ALLIANZ satırında).
+        Bunlar aynı fiziksel kurumdur; şirket/network farkı bizim için önemli değil,
+        sadece kurum alanlarını (adres/telefon/koordinat/tür) eksik olan yerlerde
+        doldurmak için birleştiriyoruz.
+        """
+        merged = {}
+        for row in results:
+            name = (row.get("name") or "").strip()
+            if not name:
+                continue
+            key = (self.normalize(name), self.normalize(row.get("district")))
+            if key not in merged:
+                merged[key] = dict(row)
+                continue
+
+            existing = merged[key]
+            for field in ("address", "phone", "latitude", "longitude", "institution_type", "city", "district"):
+                if not existing.get(field) and row.get(field):
+                    existing[field] = row[field]
+
+        return merged
+
+    def upsert_institution(self, province, inst_data):
+        inst_name = inst_data.get("name", "").strip()
+
+        district_obj = None
+        district_name = (inst_data.get("district") or "").strip()
+        if district_name:
+            district_obj = District.objects.filter(
+                province=province, name__iexact=district_name,
+            ).first()
+            if district_obj is None:
+                self.log(f"⚠ İlçe bulunamadı: {inst_name} - {district_name} ({province.name})", "warning")
+
+        # Slug: name + il. Aynı isim+il ile farklı bir kurum zaten kayıtlıysa
+        # (ör. aynı isimli iki farklı şube), ilçe eklenerek ayrıştırılır.
+        base_slug = slugify(f"{inst_name}-{province.name}", allow_unicode=False)[:300]
+        slug = base_slug
+        existing = HealthInstitution.objects.filter(slug=base_slug).first()
+        if existing and not (
+            existing.name == inst_name
+            and existing.province_id == province.id
+            and existing.district_id == (district_obj.id if district_obj else None)
+        ):
+            extended = slugify(
+                f"{inst_name}-{province.name}-{district_obj.name if district_obj else ''}",
+                allow_unicode=False,
+            )
+            slug = extended[:300]
+
+        institution_type = None
+        type_code = inst_data.get("institution_type")
+        if type_code:
+            institution_type = InstitutionType.objects.filter(code=type_code).first()
+            if institution_type is None:
+                self.log(f"⚠ InstitutionType bulunamadı: {type_code}", "warning")
+
+        _, created = HealthInstitution.objects.update_or_create(
+            slug=slug,
+            defaults={
+                "name": inst_name,
+                "province": province,
+                "district": district_obj,
+                "address": inst_data.get("address") or "",
+                "phone": inst_data.get("phone") or "",
+                "latitude": inst_data.get("latitude"),
+                "longitude": inst_data.get("longitude"),
+                "institution_type": institution_type,
+                "is_active": inst_data.get("is_active", True),
+                "raw_payload": inst_data,
+            },
+        )
+        return created
