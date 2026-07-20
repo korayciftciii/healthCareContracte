@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from companies.models import Network, PolicyApplication
-from geo.models import City, District
+from geo.models import Province, District
 from institutions.models import HealthInstitution, InstitutionContract
 from products.models import InstitutionType
 
@@ -50,7 +50,7 @@ class BaseScraper(ABC):
         self,
         *,
         name: str,
-        city_name: str,
+        province_name: str,
         district_name: str = "",
         institution_type_name: str = "",
         address: str = "",
@@ -62,28 +62,25 @@ class BaseScraper(ABC):
         """Slug üzerinden global dedup yapar.
 
         - Slug yoksa: yeni HealthInstitution oluşturur.
-        - Slug varsa: eksik alanları (address, phone, lat/lng, city, district vb.) günceller;
+        - Slug varsa: eksik alanları (address, phone, lat/lng, province, district vb.) günceller;
           dolu alanlar korunur (scraper'ın verisi üzerine yazmaz).
+        - İl/ilçe tablosu (geo app) eksiksiz seedlenmiştir; ilçe eşleşmezse burada
+          otomatik ilçe OLUŞTURULMAZ, sadece null bırakılır (migrate_institutions_from_api
+          komutuyla aynı yaklaşım).
         """
-        city_obj: City | None = None
-        if city_name:
-            city_obj = (
-                City.objects.filter(name__iexact=city_name.strip()).first()
-                or City.objects.filter(name__icontains=city_name.strip()).first()
+        province_obj: Province | None = None
+        if province_name:
+            province_obj = (
+                Province.objects.filter(name__iexact=province_name.strip()).first()
+                or Province.objects.filter(name__icontains=province_name.strip()).first()
             )
 
         district_obj: District | None = None
-        if district_name and city_obj:
+        if district_name and province_obj:
             district_obj = (
-                District.objects.filter(city=city_obj, name__iexact=district_name.strip()).first()
-                or District.objects.filter(city=city_obj, name__icontains=district_name.strip()).first()
+                District.objects.filter(province=province_obj, name__iexact=district_name.strip()).first()
+                or District.objects.filter(province=province_obj, name__icontains=district_name.strip()).first()
             )
-            if not district_obj and district_name.strip():
-                district_name_clean = district_name.strip().title() if district_name.strip().islower() or district_name.strip().isupper() else district_name.strip()
-                district_obj, _ = District.objects.get_or_create(
-                    city=city_obj,
-                    name=district_name_clean,
-                )
 
         institution_type_obj: InstitutionType | None = None
         if institution_type_name:
@@ -93,24 +90,24 @@ class BaseScraper(ABC):
 
         clean_name = name.strip().title() if name.islower() else name.strip()
 
-        # Önce mevcut veritabanında aynı isim (veya normalize edilmiş isim) + şehir ile kurum var mı kontrol et!
+        # Önce mevcut veritabanında aynı isim (veya normalize edilmiş isim) + il ile kurum var mı kontrol et!
         # Böylece eski/farklı slug üretimi yüzünden veya farklı ilçelerden gelmesi yüzünden mükerrer kayıt oluşmaz.
         inst: HealthInstitution | None = None
-        if city_obj:
+        if province_obj:
             # İlçe de biliniyorsa önce hem il hem ilçe ile eşleşene bak
             if district_obj:
                 inst = HealthInstitution.objects.filter(
-                    city=city_obj, district=district_obj, name__iexact=clean_name
+                    province=province_obj, district=district_obj, name__iexact=clean_name
                 ).first()
             # Bulunamadıysa (ya da ilçe verilmediyse/eski kayıtta null ise), aynı il içinde aynı isimde olan ilk kaydı al
             if not inst:
                 inst = HealthInstitution.objects.filter(
-                    city=city_obj, name__iexact=clean_name
+                    province=province_obj, name__iexact=clean_name
                 ).first()
 
-        # Şehir nesnesi yoksa veya il ile bulunamadıysa slug / isim ile kontrol et
-        city_str = city_obj.name if city_obj else city_name
-        slug = self._build_slug(clean_name, city_str, district_name)
+        # İl nesnesi yoksa veya il ile bulunamadıysa slug / isim ile kontrol et
+        province_str = province_obj.name if province_obj else province_name
+        slug = self._build_slug(clean_name, province_str, district_name)
         if not inst:
             inst = HealthInstitution.objects.filter(slug=slug).first()
 
@@ -123,7 +120,7 @@ class BaseScraper(ABC):
                 phone=phone,
                 latitude=latitude,
                 longitude=longitude,
-                city=city_obj,
+                province=province_obj,
                 district=district_obj,
                 institution_type=institution_type_obj,
                 raw_payload=raw_payload or {},
@@ -147,8 +144,8 @@ class BaseScraper(ABC):
             if inst.longitude is None and longitude is not None:
                 inst.longitude = longitude
                 changed = True
-            if not inst.city_id and city_obj:
-                inst.city = city_obj
+            if not inst.province_id and province_obj:
+                inst.province = province_obj
                 changed = True
             if not inst.district_id and district_obj:
                 inst.district = district_obj
@@ -226,30 +223,30 @@ class BaseScraper(ABC):
         return contract, created
 
     @staticmethod
-    def _build_slug(name: str, city_name: str, district_name: str = "") -> str:
+    def _build_slug(name: str, province_name: str, district_name: str = "") -> str:
         """Çakışmaya karşı dayanıklı slug üretir."""
-        base = slugify(f"{name}-{city_name}", allow_unicode=False)[:300]
+        base = slugify(f"{name}-{province_name}", allow_unicode=False)[:300]
         if not base:
             base = slugify(name, allow_unicode=False)[:300]
 
         if not HealthInstitution.objects.filter(slug=base).exists():
             return base
 
-        # Eğer aynı slug ile kayıt varsa ve adı + şehri aynıysa, çakışma değildir (aynı kurumdur)
+        # Eğer aynı slug ile kayıt varsa ve adı + ili aynıysa, çakışma değildir (aynı kurumdur)
         existing = HealthInstitution.objects.filter(slug=base).first()
         if existing and existing.name.strip().lower() == name.strip().lower():
             return base
 
         # Önce district ile genişlet (farklı bir kurumsa)
         if district_name:
-            extended = slugify(f"{name}-{city_name}-{district_name}", allow_unicode=False)[:300]
+            extended = slugify(f"{name}-{province_name}-{district_name}", allow_unicode=False)[:300]
             if not HealthInstitution.objects.filter(slug=extended).exists():
                 return extended
 
         return base
 
-    def _resolve_cities(self, job: "ScrapeJob") -> list[City]:
-        """Job'un city filtresine göre şehir listesi döner."""
-        if job.city_id:
-            return [job.city]
-        return list(City.objects.exclude(external_id__isnull=True).order_by("plate_code"))
+    def _resolve_provinces(self, job: "ScrapeJob") -> list[Province]:
+        """Job'un il filtresine göre il listesi döner."""
+        if job.province_id:
+            return [job.province]
+        return list(Province.objects.filter(is_active=True).order_by("plate_code"))

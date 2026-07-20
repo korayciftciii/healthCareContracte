@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from django.utils import timezone
 
 from companies.models import InsuranceCompany, Network, PolicyApplication
-from geo.models import City
+from geo.models import Province
 from products.models import ProductType
 
 from ..base import BaseScraper
@@ -39,7 +39,7 @@ class AxaScraper(BaseScraper):
         job.request_params = {
             "source_key": self.source_key,
             "company": "AXA",
-            "city": job.city.name if job.city_id else "ALL (81)",
+            "province": job.province.name if job.province_id else "ALL (81)",
             "product_type": job.product_type.code if job.product_type_id else "ALL",
         }
         job.append_log("Job started [source: axa].")
@@ -59,7 +59,7 @@ class AxaScraper(BaseScraper):
         try:
             # Tarama yapılacak ürün tipleri (TSS ve/veya ÖSS)
             product_types = self._resolve_product_types(job)
-            cities = self._resolve_cities(job)
+            provinces = self._resolve_provinces(job)
 
             for product_type in product_types:
                 if product_type.code.upper() == "TSS":
@@ -82,14 +82,14 @@ class AxaScraper(BaseScraper):
                     job.append_log(f"UYARI: {company.code} - {product_type.code} için veritabanında aktif PolicyApplication bulunamadı.")
                     continue
 
-                for city in cities:
+                for province in provinces:
                     for policy_app in policy_apps:
                         try:
                             self._scrape_service(
                                 job=job,
                                 company=company,
                                 product_type=product_type,
-                                city=city,
+                                province=province,
                                 policy_type_param=policy_type_param,
                                 policy_app=policy_app,
                             )
@@ -97,7 +97,7 @@ class AxaScraper(BaseScraper):
                             had_error = True
                             job.error_message = str(exc)
                             job.append_log(
-                                f"HATA (AXA/{product_type.code}/{city.name}/ServiceId={policy_app.external_service_id}): {exc}"
+                                f"HATA (AXA/{product_type.code}/{province.name}/ServiceId={policy_app.external_service_id}): {exc}"
                             )
 
             job.status = ScrapeJob.Status.FAILED if had_error and job.result_count == 0 else (
@@ -124,7 +124,7 @@ class AxaScraper(BaseScraper):
         job: ScrapeJob,
         company: InsuranceCompany,
         product_type: ProductType,
-        city: City,
+        province: Province,
         policy_type_param: str,
         policy_app: PolicyApplication,
     ) -> None:
@@ -135,14 +135,14 @@ class AxaScraper(BaseScraper):
         items = self.client.get_institutions(
             policy_type=policy_type_param,
             service_id=service_id,
-            city_name=city.name,
+            city_name=province.name,
         )
 
         job.pages_fetched += 1
         job.save(update_fields=["pages_fetched"])
 
         for item in items:
-            self._upsert_item(job, company, product_type, city, policy_app, item)
+            self._upsert_item(job, company, product_type, province, policy_app, item)
 
         time.sleep(self.DELAY_SECONDS)
 
@@ -151,7 +151,7 @@ class AxaScraper(BaseScraper):
         job: ScrapeJob,
         company: InsuranceCompany,
         product_type: ProductType,
-        city: City,
+        province: Province,
         policy_app: PolicyApplication,
         item: dict,
     ) -> None:
@@ -178,7 +178,7 @@ class AxaScraper(BaseScraper):
         # Var olan kurumda eksik (veya null olan ilçe vb.) alanlar varsa _upsert_institution otomatik günceller
         inst = self._upsert_institution(
             name=name,
-            city_name=city.name,
+            province_name=province.name,
             district_name=district_name,
             institution_type_name=type_name,
             address=address,
