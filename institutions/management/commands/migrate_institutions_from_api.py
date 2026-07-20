@@ -20,7 +20,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        token = os.getenv("NEXTJS_MASTER_TOKEN")
+        token = os.getenv("API_TOKEN")
         if not token:
             self.stdout.write(self.style.ERROR("✗ NEXTJS_MASTER_TOKEN env'de tanımlanmadı"))
             return
