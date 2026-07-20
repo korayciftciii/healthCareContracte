@@ -20,8 +20,8 @@ class ScrapeJob(models.Model):
         on_delete=models.PROTECT, related_name="scrape_jobs",
         help_text="Boş bırakılırsa tüm ürün tipleri için çalışır.",
     )
-    city = models.ForeignKey(
-        "geo.City", null=True, blank=True,
+    province = models.ForeignKey(
+        "geo.Province", null=True, blank=True,
         on_delete=models.PROTECT, related_name="scrape_jobs",
         help_text="Boş bırakılırsa tüm iller için çalışır.",
     )

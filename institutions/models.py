@@ -18,8 +18,8 @@ class HealthInstitution(models.Model):
         "products.InstitutionType", null=True, blank=True,
         on_delete=models.SET_NULL, related_name="institutions",
     )
-    city = models.ForeignKey(
-        "geo.City", null=True, blank=True,
+    province = models.ForeignKey(
+        "geo.Province", null=True, blank=True,
         on_delete=models.SET_NULL, related_name="institutions",
     )
     district = models.ForeignKey(
@@ -47,23 +47,23 @@ class HealthInstitution(models.Model):
         verbose_name_plural = "Sağlık Kurumları"
         ordering = ["name"]
         indexes = [
-            models.Index(fields=["city", "district"]),
+            models.Index(fields=["province", "district"]),
             models.Index(fields=["institution_type"]),
             models.Index(fields=["slug"]),
         ]
 
     def __str__(self):
-        city_str = f" / {self.city.name}" if self.city_id else ""
-        return f"{self.name}{city_str}"
+        province_str = f" / {self.province.name}" if self.province_id else ""
+        return f"{self.name}{province_str}"
 
     @classmethod
-    def make_slug(cls, name: str, city_name: str, district_name: str = "") -> str:
+    def make_slug(cls, name: str, province_name: str, district_name: str = "") -> str:
         """Kurum için canonical slug üretir. Çakışma varsa district de eklenir."""
-        base = slugify(f"{name}-{city_name}", allow_unicode=False)
+        base = slugify(f"{name}-{province_name}", allow_unicode=False)
         if len(base) > 300:
             base = base[:300]
         if cls.objects.filter(slug=base).exists():
-            extended = slugify(f"{name}-{city_name}-{district_name}", allow_unicode=False)
+            extended = slugify(f"{name}-{province_name}-{district_name}", allow_unicode=False)
             if len(extended) > 300:
                 extended = extended[:300]
             return extended

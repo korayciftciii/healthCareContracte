@@ -3,13 +3,13 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema
 from rest_framework import filters, viewsets
 
 from companies.models import InsuranceCompany, Network, PolicyApplication
-from geo.models import City, District
+from geo.models import Province, District
 from institutions.models import HealthInstitution, InstitutionContract
 from products.models import InstitutionType, ProductType
 
 from .filters import HealthInstitutionFilter, InstitutionContractFilter
 from .serializers import (
-    CitySerializer,
+    ProvinceSerializer,
     DistrictSerializer,
     HealthInstitutionSerializer,
     InstitutionContractSerializer,
@@ -45,9 +45,9 @@ class InsuranceCompanyViewSet(viewsets.ReadOnlyModelViewSet):
     ),
     retrieve=extend_schema(summary="Tek bir ilin detayı", tags=["Referans Veriler"]),
 )
-class CityViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = City.objects.all()
-    serializer_class = CitySerializer
+class ProvinceViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Province.objects.filter(is_active=True)
+    serializer_class = ProvinceSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ["name"]
     pagination_class = None
@@ -56,21 +56,21 @@ class CityViewSet(viewsets.ReadOnlyModelViewSet):
 @extend_schema_view(
     list=extend_schema(
         summary="İlçeleri listele",
-        description="`?city=<il id>` ile belirli bir ile ait ilçeleri filtreleyebilirsin.",
+        description="`?province=<il id>` ile belirli bir ile ait ilçeleri filtreleyebilirsin.",
         tags=["Referans Veriler"],
         parameters=[
             OpenApiParameter(
-                "city", int, description="İl id'sine göre filtrele (city/ ucundaki `id` alanı).",
+                "province", int, description="İl id'sine göre filtrele (province/ ucundaki `id` alanı).",
             ),
         ],
     ),
     retrieve=extend_schema(summary="Tek bir ilçenin detayı", tags=["Referans Veriler"]),
 )
 class DistrictViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = District.objects.select_related("city").all()
+    queryset = District.objects.select_related("province").filter(is_active=True)
     serializer_class = DistrictSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ["city"]
+    filterset_fields = ["province"]
     search_fields = ["name"]
     pagination_class = None
 
@@ -174,7 +174,7 @@ class PolicyApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         ),
         tags=["Sağlık Kurumları"],
         parameters=[
-            OpenApiParameter("city__plate_code", int, description="İl plaka kodu."),
+            OpenApiParameter("province__plate_code", int, description="İl plaka kodu."),
             OpenApiParameter("district", int, description="İlçe id'si."),
             OpenApiParameter("institution_type__code", str, description="Kurum tipi kodu."),
             OpenApiParameter("search", str, description="Kurum adı/adresinde serbest metin arama."),
@@ -184,7 +184,7 @@ class PolicyApplicationViewSet(viewsets.ReadOnlyModelViewSet):
 )
 class HealthInstitutionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HealthInstitution.objects.select_related(
-        "institution_type", "city", "district",
+        "institution_type", "province", "district",
     ).filter(is_active=True)
     serializer_class = HealthInstitutionSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -210,9 +210,9 @@ class HealthInstitutionViewSet(viewsets.ReadOnlyModelViewSet):
                 description="Şirket kodu (AXA, HDI, ACIBADEM, TURKIYE, ANADOLU, ALLIANZ, MAPFRE).",
             ),
             OpenApiParameter("product_type__code", str, description="TSS veya OSS."),
-            OpenApiParameter("city__plate_code", int, description="İl plaka kodu."),
-            OpenApiParameter("district", int, description="İlçe id'si."),
-            OpenApiParameter("institution_type__code", str, description="Kurum tipi kodu."),
+            OpenApiParameter("institution__province__plate_code", int, description="İl plaka kodu."),
+            OpenApiParameter("institution__district", int, description="İlçe id'si."),
+            OpenApiParameter("institution__institution_type__code", str, description="Kurum tipi kodu."),
             OpenApiParameter(
                 "networks", str,
                 description="Virgülle ayrılmış network id'leri. Herhangi birine sahip anlaşmalar döner.",
@@ -233,7 +233,7 @@ class HealthInstitutionViewSet(viewsets.ReadOnlyModelViewSet):
 class InstitutionContractViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = InstitutionContract.objects.select_related(
         "institution__institution_type",
-        "institution__city",
+        "institution__province",
         "institution__district",
         "company",
         "product_type",

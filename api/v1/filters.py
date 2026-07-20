@@ -16,8 +16,8 @@ class HealthInstitutionFilter(django_filters.FilterSet):
     Kurumları doğrudan kurum özelliklerine göre filtreler.
     Şirket/ürün/network bazlı filtreleme için /contracts/ endpoint'ini kullanın.
     """
-    city__plate_code = django_filters.NumberFilter(
-        field_name="city__plate_code", lookup_expr="exact",
+    province__plate_code = django_filters.CharFilter(
+        field_name="province__plate_code", lookup_expr="exact",
     )
     district = django_filters.NumberFilter(
         field_name="district", lookup_expr="exact",
@@ -42,8 +42,8 @@ class InstitutionContractFilter(django_filters.FilterSet):
     product_type__code = django_filters.CharFilter(
         field_name="product_type__code", lookup_expr="exact",
     )
-    city__plate_code = django_filters.NumberFilter(
-        field_name="institution__city__plate_code", lookup_expr="exact",
+    province__plate_code = django_filters.CharFilter(
+        field_name="institution__province__plate_code", lookup_expr="exact",
     )
     district = django_filters.NumberFilter(
         field_name="institution__district", lookup_expr="exact",

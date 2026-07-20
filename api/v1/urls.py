@@ -1,7 +1,7 @@
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    CityViewSet,
+    ProvinceViewSet,
     DistrictViewSet,
     HealthInstitutionViewSet,
     InstitutionContractViewSet,
@@ -16,7 +16,7 @@ router = DefaultRouter()
 router.register("institutions", HealthInstitutionViewSet, basename="institution")
 router.register("contracts", InstitutionContractViewSet, basename="contract")
 router.register("companies", InsuranceCompanyViewSet, basename="company")
-router.register("cities", CityViewSet, basename="city")
+router.register("provinces", ProvinceViewSet, basename="province")
 router.register("districts", DistrictViewSet, basename="district")
 router.register("product-types", ProductTypeViewSet, basename="product-type")
 router.register("institution-types", InstitutionTypeViewSet, basename="institution-type")

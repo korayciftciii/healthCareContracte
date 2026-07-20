@@ -18,15 +18,15 @@ class HealthInstitutionAdmin(ModelAdmin):
     list_display = (
         "name",
         "institution_type",
-        "city",
+        "province",
         "district",
         "is_active",
         "updated_at",
     )
-    list_filter = ("institution_type", "city", "is_active")
+    list_filter = ("institution_type", "province", "is_active")
     search_fields = ("name", "address", "slug")
-    list_select_related = ("institution_type", "city", "district")
-    autocomplete_fields = ("city", "district")
+    list_select_related = ("institution_type", "province", "district")
+    autocomplete_fields = ("province", "district")
     readonly_fields = ("slug", "raw_payload", "created_at", "updated_at")
     inlines = [InstitutionContractInline]
 

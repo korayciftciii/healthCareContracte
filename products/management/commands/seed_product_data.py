@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from companies.models import InsuranceCompany, Network, PolicyApplication
+from products.models import ProductType, InstitutionType
 PRODUCT_TYPES = [
     {"code": "TSS", "name": "Tamamlayıcı Sağlık Sigortası"},
     {"code": "OSS", "name": "Özel Sağlık Sigortası"},

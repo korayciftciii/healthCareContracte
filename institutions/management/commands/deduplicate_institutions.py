@@ -28,17 +28,17 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING("--- DRY-RUN MODU: Veritabanı üzerinde değişiklik yapılmayacaktır ---"))
 
-        institutions = HealthInstitution.objects.select_related("city", "district", "institution_type").all()
+        institutions = HealthInstitution.objects.select_related("province", "district", "institution_type").all()
         self.stdout.write(f"Toplam {institutions.count()} sağlık kurumu inceleniyor...")
 
         # Kurumları grupla
-        # Grup anahtarı: (normalize_name, city_id, district_id) veya ignore_district ise (normalize_name, city_id)
+        # Grup anahtarı: (normalize_name, province_id, district_id) veya ignore_district ise (normalize_name, province_id)
         groups = defaultdict(list)
         for inst in institutions:
             norm_name = " ".join(inst.name.strip().lower().split())
-            city_id = inst.city_id or 0
+            province_id = inst.province_id or 0
             district_id = 0 if ignore_district else (inst.district_id or 0)
-            groups[(norm_name, city_id, district_id)].append(inst)
+            groups[(norm_name, province_id, district_id)].append(inst)
 
         duplicate_groups = {k: v for k, v in groups.items() if len(v) > 1}
         self.stdout.write(self.style.NOTICE(f"Tespit edilen mükerrer (duplicate) kurum grubu sayısı: {len(duplicate_groups)}"))
@@ -48,7 +48,7 @@ class Command(BaseCommand):
         total_merged_contracts = 0
 
         for key, inst_list in duplicate_groups.items():
-            norm_name, city_id, district_id = key
+            norm_name, province_id, district_id = key
             # En iyi (canonical) kurumu seç: En çok kontratı olan veya en eski yaratılan
             inst_list.sort(key=lambda x: (x.contracts.count(), -x.pk if x.pk else 0), reverse=True)
             primary = inst_list[0]
@@ -56,7 +56,7 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.WARNING(
-                    f"\n[GRUP] '{primary.name}' (Şehir: {primary.city.name if primary.city else 'Bilinmiyor'}, İlçe: {primary.district.name if primary.district else 'Bilinmiyor'})"
+                    f"\n[GRUP] '{primary.name}' (İl: {primary.province.name if primary.province else 'Bilinmiyor'}, İlçe: {primary.district.name if primary.district else 'Bilinmiyor'})"
                 )
             )
             self.stdout.write(f"  Ana Kayıt (Primary): ID={primary.pk} (Slug: {primary.slug}, Kontrat Sayısı: {primary.contracts.count()})")
@@ -83,6 +83,9 @@ class Command(BaseCommand):
                             fields_updated = True
                         if not primary.district_id and dup.district_id:
                             primary.district_id = dup.district_id
+                            fields_updated = True
+                        if not primary.province_id and dup.province_id:
+                            primary.province_id = dup.province_id
                             fields_updated = True
                         if not primary.institution_type_id and dup.institution_type_id:
                             primary.institution_type_id = dup.institution_type_id

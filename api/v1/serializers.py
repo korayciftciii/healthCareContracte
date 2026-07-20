@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from companies.models import InsuranceCompany, Network, PolicyApplication
-from geo.models import City, District
+from geo.models import Province, District
 from institutions.models import HealthInstitution, InstitutionContract
 from products.models import InstitutionType, ProductType
 
@@ -34,16 +34,16 @@ class PolicyApplicationSerializer(serializers.ModelSerializer):
         ]
 
 
-class CitySerializer(serializers.ModelSerializer):
+class ProvinceSerializer(serializers.ModelSerializer):
     class Meta:
-        model = City
-        fields = ["id", "name", "plate_code"]
+        model = Province
+        fields = ["id", "name", "plate_code", "is_active"]
 
 
 class DistrictSerializer(serializers.ModelSerializer):
     class Meta:
         model = District
-        fields = ["id", "name", "city"]
+        fields = ["id", "name", "province", "is_active"]
 
 
 class ProductTypeSerializer(serializers.ModelSerializer):
@@ -63,7 +63,7 @@ class HealthInstitutionSerializer(serializers.ModelSerializer):
     institution_type = serializers.SlugRelatedField(
         slug_field="code", read_only=True, allow_null=True,
     )
-    city = serializers.SlugRelatedField(slug_field="name", read_only=True, allow_null=True)
+    province = serializers.SlugRelatedField(slug_field="name", read_only=True, allow_null=True)
     district = serializers.SlugRelatedField(slug_field="name", read_only=True, allow_null=True)
 
     class Meta:
@@ -71,7 +71,7 @@ class HealthInstitutionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "name", "slug",
             "address", "phone", "latitude", "longitude",
-            "institution_type", "city", "district",
+            "institution_type", "province", "district",
             "is_active",
         ]
 
