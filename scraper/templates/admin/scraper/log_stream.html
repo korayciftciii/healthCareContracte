@@ -1,0 +1,235 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Canlı Log Takibi (WebSocket Stream) | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block content %}
+<div class="px-4 py-6 md:px-8 max-w-7xl mx-auto">
+    <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary-600">terminal</span>
+                Canlı Log Takibi (WebSocket Stream)
+            </h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Arka planda çalışan Scraper işlemlerinin anlık (.log) dosya çıktılarını canlı olarak izleyin.
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="ws-status-badge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                <span class="w-2 h-2 mr-1.5 bg-yellow-400 rounded-full animate-pulse"></span>
+                Bağlanıyor...
+            </span>
+        </div>
+    </div>
+
+    <!-- Kontroller -->
+    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-4 flex-1">
+            <div class="flex flex-col gap-1.5 w-full sm:w-auto min-w-[200px]">
+                <label for="company-select" class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">
+                    Şirket / Kaynak (Company)
+                </label>
+                <select id="company-select" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-900 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+                    <option value="">Şirket seçin...</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col gap-1.5 w-full sm:w-auto min-w-[300px] flex-1">
+                <label for="file-select" class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">
+                    Log Dosyası (.log)
+                </label>
+                <select id="file-select" disabled class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-900 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white disabled:opacity-50">
+                    <option value="">Önce şirket seçin...</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 pt-4 sm:pt-0">
+            <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300 select-none">
+                <input type="checkbox" id="auto-scroll-check" checked class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:focus:ring-primary-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                Otomatik Kaydır
+            </label>
+
+            <button id="btn-pause" type="button" class="px-3.5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 transition">
+                Akışı Durdur
+            </button>
+            <button id="btn-clear" type="button" class="px-3.5 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 dark:bg-gray-800 dark:text-red-400 dark:border-red-900/40 dark:hover:bg-red-900/20 transition">
+                Temizle
+            </button>
+        </div>
+    </div>
+
+    <!-- Terminal Ekranı -->
+    <div class="relative rounded-lg overflow-hidden border border-gray-800 shadow-2xl bg-gray-950">
+        <div class="flex items-center justify-between px-4 py-2.5 bg-gray-900 border-b border-gray-800 text-xs font-mono text-gray-400">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-yellow-500/80 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-green-500/80 inline-block"></span>
+                <span id="terminal-filename" class="ml-2 text-gray-300 font-semibold">Dosya Seçilmedi</span>
+            </div>
+            <span id="terminal-linecount" class="text-gray-500">0 satır</span>
+        </div>
+        <pre id="log-console" class="p-4 text-emerald-400 font-mono text-xs md:text-sm overflow-y-auto h-[600px] whitespace-pre-wrap leading-relaxed selection:bg-emerald-900 selection:text-white">--- Lütfen yukarıdan izlemek istediğiniz log dosyasını seçiniz ---
+</pre>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const wsStatusBadge = document.getElementById("ws-status-badge");
+    const companySelect = document.getElementById("company-select");
+    const fileSelect = document.getElementById("file-select");
+    const logConsole = document.getElementById("log-console");
+    const autoScrollCheck = document.getElementById("auto-scroll-check");
+    const btnPause = document.getElementById("btn-pause");
+    const btnClear = document.getElementById("btn-clear");
+    const terminalFilename = document.getElementById("terminal-filename");
+    const terminalLineCount = document.getElementById("terminal-linecount");
+
+    let ws = null;
+    let isPaused = false;
+    let lineCount = 0;
+    let reconnectTimer = null;
+
+    function formatLineCount(text) {
+        const lines = text.split('\n').filter(Boolean).length;
+        lineCount += lines;
+        terminalLineCount.textContent = `${lineCount} satır`;
+    }
+
+    function updateBadge(status) {
+        if (status === "connected") {
+            wsStatusBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+            wsStatusBadge.innerHTML = '<span class="w-2 h-2 mr-1.5 bg-green-500 rounded-full animate-ping"></span> Bağlandı (Canlı)';
+        } else if (status === "connecting") {
+            wsStatusBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+            wsStatusBadge.innerHTML = '<span class="w-2 h-2 mr-1.5 bg-yellow-400 rounded-full animate-pulse"></span> Bağlanıyor...';
+        } else {
+            wsStatusBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+            wsStatusBadge.innerHTML = '<span class="w-2 h-2 mr-1.5 bg-red-500 rounded-full"></span> Bağlantı Kopuk';
+        }
+    }
+
+    function connectWs() {
+        if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+            return;
+        }
+        updateBadge("connecting");
+        const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+        const wsUrl = protocol + window.location.host + "/ws/admin/log-stream/";
+        
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() {
+            updateBadge("connected");
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            // Şirket listesini iste
+            ws.send(JSON.stringify({ action: "list_companies" }));
+        };
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === "companies_list") {
+                const currentVal = companySelect.value;
+                companySelect.innerHTML = '<option value="">Şirket seçin...</option>';
+                data.companies.forEach(function(comp) {
+                    const opt = document.createElement("option");
+                    opt.value = comp;
+                    opt.textContent = comp;
+                    companySelect.appendChild(opt);
+                });
+                if (currentVal) companySelect.value = currentVal;
+            } 
+            else if (data.type === "files_list") {
+                fileSelect.innerHTML = '<option value="">Log Dosyası Seçin...</option>';
+                if (data.files && data.files.length > 0) {
+                    fileSelect.disabled = false;
+                    data.files.forEach(function(f) {
+                        const opt = document.createElement("option");
+                        opt.value = f.filename;
+                        const sizeKB = (f.size / 1024).toFixed(1);
+                        const dateStr = new Date(f.mtime * 1000).toLocaleString("tr-TR");
+                        opt.textContent = `${f.filename} (${sizeKB} KB - ${dateStr})`;
+                        fileSelect.appendChild(opt);
+                    });
+                } else {
+                    fileSelect.innerHTML = '<option value="">Bu şirkete ait log dosyası yok</option>';
+                    fileSelect.disabled = true;
+                }
+            }
+            else if (data.type === "stream_started") {
+                terminalFilename.textContent = data.file;
+                logConsole.innerHTML = `--- [YENİ AKIŞ BAŞLADI: ${data.file}] ---\n`;
+                lineCount = 0;
+                terminalLineCount.textContent = "0 satır";
+            }
+            else if (data.type === "log_chunk") {
+                if (isPaused) return;
+                logConsole.appendChild(document.createTextNode(data.content));
+                formatLineCount(data.content);
+                if (autoScrollCheck.checked) {
+                    logConsole.scrollTop = logConsole.scrollHeight;
+                }
+            }
+            else if (data.type === "error") {
+                logConsole.appendChild(document.createTextNode(`\n[HATA]: ${data.message}\n`));
+            }
+        };
+
+        ws.onclose = function() {
+            updateBadge("disconnected");
+            reconnectTimer = setTimeout(connectWs, 3000);
+        };
+
+        ws.onerror = function() {
+            updateBadge("disconnected");
+        };
+    }
+
+    companySelect.addEventListener("change", function() {
+        const comp = companySelect.value;
+        if (comp && ws && ws.readyState === WebSocket.OPEN) {
+            fileSelect.disabled = true;
+            fileSelect.innerHTML = '<option value="">Dosyalar yükleniyor...</option>';
+            ws.send(JSON.stringify({ action: "list_files", company: comp }));
+        } else {
+            fileSelect.disabled = true;
+            fileSelect.innerHTML = '<option value="">Önce şirket seçin...</option>';
+        }
+    });
+
+    fileSelect.addEventListener("change", function() {
+        const comp = companySelect.value;
+        const file = fileSelect.value;
+        if (comp && file && ws && ws.readyState === WebSocket.OPEN) {
+            isPaused = false;
+            btnPause.textContent = "Akışı Durdur";
+            ws.send(JSON.stringify({ action: "start_stream", company: comp, log_file: file }));
+        }
+    });
+
+    btnPause.addEventListener("click", function() {
+        isPaused = !isPaused;
+        if (isPaused) {
+            btnPause.textContent = "Akışı Devam Ettir";
+            logConsole.appendChild(document.createTextNode("\n--- [AKIŞ KULLANICI TARAFINDAN DURAKLATILDI] ---\n"));
+        } else {
+            btnPause.textContent = "Akışı Durdur";
+            logConsole.appendChild(document.createTextNode("\n--- [AKIŞ DEVAM EDİYOR] ---\n"));
+        }
+    });
+
+    btnClear.addEventListener("click", function() {
+        logConsole.innerHTML = "";
+        lineCount = 0;
+        terminalLineCount.textContent = "0 satır";
+    });
+
+    // İlk bağlantıyı başlat
+    connectWs();
+});
+</script>
+{% endblock %}

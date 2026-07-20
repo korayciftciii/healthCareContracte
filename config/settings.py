@@ -30,7 +30,9 @@ if not DEBUG:
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
     "unfold",
+    "channels",
     "unfold.contrib.filters",
     "unfold.contrib.forms",
     "django.contrib.admin",
@@ -79,6 +81,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
 
 
 # Database
@@ -172,28 +175,6 @@ SPECTACULAR_SETTINGS = {
 }
 
 
-# --- tamamlayicisaglik.com scraper config ---
-# All paths below confirmed working via direct testing (no cookies/CSRF header
-# required for these GET endpoints). See isterler.md for the captured evidence.
-SCRAPER_CONFIG = {
-    "BASE_URL": env("TSS_BASE_URL", default="https://www.tamamlayicisaglik.com"),
-    "COMPANY_LIST_PATH": env(
-        "TSS_COMPANY_LIST_PATH", default="/internal-api/company-list-results"
-    ),
-    "INSTITUTION_LIST_PATH": env(
-        "TSS_INSTITUTION_LIST_PATH", default="/internal-api/search-hospital"
-    ),
-    "CITY_LIST_PATH": env("TSS_CITY_LIST_PATH", default="/internal-api/cities"),
-    "DISTRICT_LIST_PATH": env("TSS_DISTRICT_LIST_PATH", default="/internal-api/districts"),
-    "HOSPITAL_TYPES_PATH": env("TSS_HOSPITAL_TYPES_PATH", default="/internal-api/hospital-types"),
-    "NETWORKS_PATH": env("TSS_NETWORKS_PATH", default="/internal-api/networks"),
-    "DEFAULT_PAGE_SIZE": env.int("TSS_PAGE_SIZE", default=50),
-    "REQUEST_DELAY_SECONDS": env.float("TSS_REQUEST_DELAY_SECONDS", default=0.5),
-    "REQUEST_TIMEOUT_SECONDS": env.int("TSS_REQUEST_TIMEOUT_SECONDS", default=10),
-    "REQUEST_HEADERS": env.json("TSS_EXTRA_HEADERS", default={}),
-    # Confirmed empirically: cityId in tamamlayicisaglik's API == Turkish plate code (plaka kodu).
-    "CITY_ID_MODE": env("TSS_CITY_ID_MODE", default="plate_code"),
-}
 
 
 # --- django-unfold ---
@@ -203,4 +184,27 @@ UNFOLD = {
     "SITE_SYMBOL": "local_hospital",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "navigation": [
+            {
+                "title": "Canlı İzleme & Tarama",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Canlı Log Takibi (Stream)",
+                        "icon": "terminal",
+                        "link": "/admin/scraper/scrapejob/log-stream/",
+                    },
+                    {
+                        "title": "Tarama İşleri",
+                        "icon": "work",
+                        "link": "/admin/scraper/scrapejob/",
+                    },
+                ],
+            },
+        ],
+    },
 }
+

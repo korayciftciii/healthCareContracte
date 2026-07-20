@@ -2,19 +2,21 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import filters, viewsets
 
-from companies.models import InsuranceCompany, Network
+from companies.models import InsuranceCompany, Network, PolicyApplication
 from geo.models import City, District
-from institutions.models import HealthInstitution
+from institutions.models import HealthInstitution, InstitutionContract
 from products.models import InstitutionType, ProductType
 
-from .filters import HealthInstitutionFilter
+from .filters import HealthInstitutionFilter, InstitutionContractFilter
 from .serializers import (
     CitySerializer,
     DistrictSerializer,
     HealthInstitutionSerializer,
+    InstitutionContractSerializer,
     InstitutionTypeSerializer,
     InsuranceCompanySerializer,
     NetworkSerializer,
+    PolicyApplicationSerializer,
     ProductTypeSerializer,
 )
 
@@ -22,8 +24,7 @@ from .serializers import (
 @extend_schema_view(
     list=extend_schema(
         summary="Sigorta şirketlerini listele",
-        description="Sistemde tanımlı 7 sigorta şirketini (AXA, HDI, Acıbadem, Türkiye, "
-        "Anadolu, Allianz, Mapfre) döner. Dropdown/filtre doldurmak için kullanılır.",
+        description="Sistemde tanımlı sigorta şirketlerini döner. Dropdown/filtre doldurmak için kullanılır.",
         tags=["Referans Veriler"],
     ),
     retrieve=extend_schema(summary="Tek bir sigorta şirketinin detayı", tags=["Referans Veriler"]),
@@ -39,8 +40,7 @@ class InsuranceCompanyViewSet(viewsets.ReadOnlyModelViewSet):
 @extend_schema_view(
     list=extend_schema(
         summary="İlleri listele",
-        description="Türkiye'nin 81 ilini plaka koduyla birlikte döner "
-        "(tamamlayicisaglik.com'daki cityId, plaka koduyla birebir aynıdır).",
+        description="Türkiye'nin 81 ilini plaka koduyla birlikte döner.",
         tags=["Referans Veriler"],
     ),
     retrieve=extend_schema(summary="Tek bir ilin detayı", tags=["Referans Veriler"]),
@@ -60,7 +60,7 @@ class CityViewSet(viewsets.ReadOnlyModelViewSet):
         tags=["Referans Veriler"],
         parameters=[
             OpenApiParameter(
-                "city", int, description="İl id'sine göre filtrele (city/ ucundaki `id` alanı)."
+                "city", int, description="İl id'sine göre filtrele (city/ ucundaki `id` alanı).",
             ),
         ],
     ),
@@ -92,7 +92,7 @@ class ProductTypeViewSet(viewsets.ReadOnlyModelViewSet):
 @extend_schema_view(
     list=extend_schema(
         summary="Kurum tiplerini listele",
-        description="Hastane, Tıp Merkezi, Diş Hekimi, Optik, Medikal vb. — 9 kurum türü.",
+        description="Hastane, Tıp Merkezi, Diş Hekimi, Optik, Medikal vb.",
         tags=["Referans Veriler"],
     ),
     retrieve=extend_schema(summary="Tek bir kurum tipinin detayı", tags=["Referans Veriler"]),
@@ -105,11 +105,13 @@ class InstitutionTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
 @extend_schema_view(
     list=extend_schema(
-        summary="Network'leri listele",
-        description="Bir sigorta şirketinin bir ürün tipi (TSS/ÖSS) içindeki alt-kapsam "
-        "tier'ları (örn. AXA TSS için 'Sağlığım Tamam' / 'Tutumlu'). Aynı şirketin TSS "
-        "ve ÖSS network'leri tamamen farklıdır. `?company__code=` ve `?product_type__code=` "
-        "ile filtrelenir. Bazı şirketlerin (örn. Mapfre) hiç network'ü yoktur.",
+        summary="Network / Plan gruplarını listele",
+        description=(
+            "Bir sigorta şirketinin bir ürün tipi içindeki plan grupları.\n\n"
+            "TSS örnekleri: 'Sağlığım Tamam Sigortası', 'AXA Sağlığım Tamam Tutumlu'.\n"
+            "ÖSS örnekleri: 'Network 1', 'Network 2', 'Network 3'.\n\n"
+            "`?company__code=AXA&product_type__code=TSS` ile filtrelenir."
+        ),
         tags=["Referans Veriler"],
         parameters=[
             OpenApiParameter("company__code", str, description="Şirket kodu."),
@@ -132,37 +134,49 @@ class NetworkViewSet(viewsets.ReadOnlyModelViewSet):
 
 @extend_schema_view(
     list=extend_schema(
-        summary="Anlaşmalı sağlık kurumlarını sorgula",
+        summary="Poliçe uygulamalarını listele",
         description=(
-            "Sigorta şirketi, il, ilçe, ürün tipi ve kurum tipine göre filtrelenebilen "
-            "anlaşmalı kurum listesi. Bu, sistemin ana endpoint'idir — Next.js frontend'i "
-            "büyük olasılıkla en çok bunu kullanacak.\n\n"
-            "Adres/telefon/koordinat bilgisi **yoktur** (kaynak site bu bilgileri "
-            "sağlamıyor) — sadece isim, il/ilçe ve kurum tipi bilgisi vardır."
+            "Bir network altındaki poliçe uygulamaları. Her uygulama şirketin API'sindeki\n"
+            "bir `external_service_id`'ye (örn. AXA ServiceId) karşılık gelir.\n\n"
+            "Kurumları bu uygulamalar bazında sorgulamak için /contracts/ endpoint'ini kullanın."
+        ),
+        tags=["Referans Veriler"],
+        parameters=[
+            OpenApiParameter("company__code", str, description="Şirket kodu."),
+            OpenApiParameter("product_type__code", str, description="TSS veya OSS."),
+            OpenApiParameter("network", int, description="Network id'si."),
+        ],
+    ),
+    retrieve=extend_schema(summary="Tek bir poliçe uygulamasının detayı", tags=["Referans Veriler"]),
+)
+class PolicyApplicationViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = PolicyApplication.objects.select_related(
+        "company", "product_type", "network",
+    ).filter(is_active=True)
+    serializer_class = PolicyApplicationSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = {
+        "company__code": ["exact"],
+        "product_type__code": ["exact"],
+        "network": ["exact"],
+    }
+    search_fields = ["name", "code", "external_service_id"]
+    pagination_class = None
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="Sağlık kurumlarını listele (saf kurum verileri)",
+        description=(
+            "Şirketten bağımsız saf kurum listesi. Adres, telefon, koordinat bilgilerini içerir.\n\n"
+            "Bir şirket/network bazında anlaşmalı kurum sorgulamak için "
+            "`/contracts/` endpoint'ini kullanın."
         ),
         tags=["Sağlık Kurumları"],
         parameters=[
-            OpenApiParameter(
-                "company__code", str,
-                description="Şirket kodu (AXA, HDI, ACIBADEM, TURKIYE, ANADOLU, ALLIANZ, MAPFRE).",
-            ),
-            OpenApiParameter(
-                "city__plate_code", int, description="İl plaka kodu (örn. İstanbul için 34)."
-            ),
-            OpenApiParameter("district", int, description="İlçe id'si (districts/ endpoint'inden)."),
-            OpenApiParameter("product_type__code", str, description="TSS veya OSS."),
-            OpenApiParameter(
-                "institution_type__code", str,
-                description="HASTANE, TIP_MERKEZI, DIS, OPTIK, MEDIKAL, FIZIK_TEDAVI, "
-                "TANI_GORUNTULEME, EVDE_BAKIM, DOKTOR.",
-            ),
-            OpenApiParameter(
-                "networks", str,
-                description="Network id'sine göre filtrele (networks/ endpoint'inden gelen `id`). "
-                "Virgülle ayrılmış birden fazla id kabul eder (örn. `networks=25,26`) — herhangi "
-                "birine sahip kurumlar döner. Şirket seçilmemişse anlamsızdır; company__code ile "
-                "birlikte kullanılmalı.",
-            ),
+            OpenApiParameter("city__plate_code", int, description="İl plaka kodu."),
+            OpenApiParameter("district", int, description="İlçe id'si."),
+            OpenApiParameter("institution_type__code", str, description="Kurum tipi kodu."),
             OpenApiParameter("search", str, description="Kurum adı/adresinde serbest metin arama."),
         ],
     ),
@@ -170,9 +184,71 @@ class NetworkViewSet(viewsets.ReadOnlyModelViewSet):
 )
 class HealthInstitutionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HealthInstitution.objects.select_related(
-        "company", "product_type", "institution_type", "city", "district"
-    ).prefetch_related("networks").filter(is_active=True).distinct()
+        "institution_type", "city", "district",
+    ).filter(is_active=True)
     serializer_class = HealthInstitutionSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_class = HealthInstitutionFilter
     search_fields = ["name", "address"]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="Anlaşmalı sağlık kurumlarını sorgula",
+        description=(
+            "Ana arama endpoint'i. Şirket, ürün tipi, network, poliçe uygulaması,\n"
+            "il, ilçe ve kurum tipine göre filtreleme yapılabilir.\n\n"
+            "Her kayıt: kurum bilgileri + şirket + ürün tipi + network + poliçe uygulamaları "
+            "+ kapsam notu (`coverage_notes`).\n\n"
+            "Yalnızca `is_active=true` olan anlaşmalar döner. Scraper kurumu göremediğinde\n"
+            "anlaşmayı pasif yapar; kurum kaydı silinmez."
+        ),
+        tags=["Sağlık Kurumları"],
+        parameters=[
+            OpenApiParameter(
+                "company__code", str,
+                description="Şirket kodu (AXA, HDI, ACIBADEM, TURKIYE, ANADOLU, ALLIANZ, MAPFRE).",
+            ),
+            OpenApiParameter("product_type__code", str, description="TSS veya OSS."),
+            OpenApiParameter("city__plate_code", int, description="İl plaka kodu."),
+            OpenApiParameter("district", int, description="İlçe id'si."),
+            OpenApiParameter("institution_type__code", str, description="Kurum tipi kodu."),
+            OpenApiParameter(
+                "networks", str,
+                description="Virgülle ayrılmış network id'leri. Herhangi birine sahip anlaşmalar döner.",
+            ),
+            OpenApiParameter(
+                "policy_application", int,
+                description="Poliçe uygulaması id'si.",
+            ),
+            OpenApiParameter(
+                "policy_application__service_id", str,
+                description="AXA gibi şirketlerin ServiceId'si. Örn: '17' (Sağlığım Tamam TSS).",
+            ),
+            OpenApiParameter("search", str, description="Kurum adı/adresinde serbest metin arama."),
+        ],
+    ),
+    retrieve=extend_schema(summary="Tek bir kurum anlaşmasının detayı", tags=["Sağlık Kurumları"]),
+)
+class InstitutionContractViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = InstitutionContract.objects.select_related(
+        "institution__institution_type",
+        "institution__city",
+        "institution__district",
+        "company",
+        "product_type",
+    ).prefetch_related(
+        "networks__company",
+        "networks__product_type",
+        "policy_applications__company",
+        "policy_applications__product_type",
+        "policy_applications__network",
+    ).filter(is_active=True).distinct()
+    serializer_class = InstitutionContractSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_class = InstitutionContractFilter
+    search_fields = [
+        "institution__name",
+        "institution__address",
+        "coverage_notes",
+    ]
