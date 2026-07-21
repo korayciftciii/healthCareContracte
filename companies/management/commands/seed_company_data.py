@@ -31,6 +31,32 @@ NETWORKS = [
 
 # 3. Poliçe Uygulamaları (Policy Applications) Listesi
 POLICY_APPLICATIONS = [
+    # --- AXA TSS Poliçe Uygulamaları (network'ün kendisi doğrudan poliçe uygulamasıdır, alt kırılım yok) ---
+    {
+        "company_code": "AXA",
+        "product_type_code": "TSS",
+        "network_name": "Sağlığım Tamam Sigortası",
+        "name": "Sağlığım Tamam Sigortası",
+        "code": "AXA_TSS_SAGLIGIM_TAMAM",
+        "service_id": "17",
+    },
+    {
+        "company_code": "AXA",
+        "product_type_code": "TSS",
+        "network_name": "AXA Sağlığım Tamam Tutumlu Sigortası",
+        "name": "AXA Sağlığım Tamam Tutumlu Sigortası",
+        "code": "AXA_TSS_TUTUMLU",
+        "service_id": "24",
+    },
+    {
+        "company_code": "AXA",
+        "product_type_code": "TSS",
+        "network_name": "Grup Sağlığım Tamam Sigortası",
+        "name": "Grup Sağlığım Tamam Sigortası",
+        "code": "AXA_TSS_GRUP",
+        "service_id": "81",
+    },
+
     # --- AXA ÖSS Poliçe Uygulamaları ---
     # Network 1
     {
