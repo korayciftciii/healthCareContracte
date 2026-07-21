@@ -58,7 +58,7 @@ class BaseScraper(ABC):
         latitude: float | None = None,
         longitude: float | None = None,
         raw_payload: dict | None = None,
-    ) -> HealthInstitution:
+    ) -> tuple[HealthInstitution, bool, list[str]]:
         """Slug üzerinden global dedup yapar.
 
         - Slug yoksa: yeni HealthInstitution oluşturur.
@@ -129,37 +129,37 @@ class BaseScraper(ABC):
         else:
             created = False
 
+        changed_fields: list[str] = []
         if not created:
             # Varsa: sadece boş/eksik veya null olan alanları güncelle
-            changed = False
             if not inst.address and address:
                 inst.address = address
-                changed = True
+                changed_fields.append("address")
             if not inst.phone and phone:
                 inst.phone = phone
-                changed = True
+                changed_fields.append("phone")
             if inst.latitude is None and latitude is not None:
                 inst.latitude = latitude
-                changed = True
+                changed_fields.append("latitude")
             if inst.longitude is None and longitude is not None:
                 inst.longitude = longitude
-                changed = True
+                changed_fields.append("longitude")
             if not inst.province_id and province_obj:
                 inst.province = province_obj
-                changed = True
+                changed_fields.append("province")
             if not inst.district_id and district_obj:
                 inst.district = district_obj
-                changed = True
+                changed_fields.append("district")
             if not inst.institution_type_id and institution_type_obj:
                 inst.institution_type = institution_type_obj
-                changed = True
+                changed_fields.append("institution_type")
             if raw_payload and not inst.raw_payload:
                 inst.raw_payload = raw_payload
-                changed = True
-            if changed:
+                changed_fields.append("raw_payload")
+            if changed_fields:
                 inst.save()
 
-        return inst
+        return inst, created, changed_fields
 
     def _upsert_contract(
         self,
@@ -173,10 +173,10 @@ class BaseScraper(ABC):
         networks: list[Network] | None = None,
         coverage_notes: str = "",
         raw_payload: dict | None = None,
-    ) -> tuple[InstitutionContract, bool]:
+    ) -> tuple[InstitutionContract, bool, list[str]]:
         """(company, product_type, external_id) üzerinden upsert.
 
-        Returns (contract, created).
+        Returns (contract, created, changed_fields).
         """
         contract, created = InstitutionContract.objects.get_or_create(
             company=company,
@@ -191,36 +191,61 @@ class BaseScraper(ABC):
                 "raw_payload": raw_payload or {},
             },
         )
+        changed_fields: list[str] = []
         if not created:
             update_fields = ["is_active", "last_seen_at", "last_scrape_job"]
+            if not contract.is_active:
+                changed_fields.append("is_active(reactivated)")
             contract.is_active = True
             contract.last_seen_at = timezone.now()
             contract.last_scrape_job = job
             if coverage_notes and not contract.coverage_notes:
                 contract.coverage_notes = coverage_notes
                 update_fields.append("coverage_notes")
+                changed_fields.append("coverage_notes")
             if raw_payload and not contract.raw_payload:
                 contract.raw_payload = raw_payload
                 update_fields.append("raw_payload")
+                changed_fields.append("raw_payload")
             if contract.institution_id != institution.pk:
                 contract.institution = institution
                 update_fields.append("institution")
+                changed_fields.append("institution")
             contract.save(update_fields=update_fields)
 
         if policy_applications is not None:
             # .set() yerine .add() kullanarak, farklı ServiceId (PolicyApplication) taramalarında
             # gelen tüm uygulamaları ve networkleri kontrata ekliyoruz (biriktiriyoruz)
+            existing_pa_ids = set(contract.policy_applications.values_list("pk", flat=True))
+            new_pa = [pa for pa in policy_applications if pa.pk not in existing_pa_ids]
             contract.policy_applications.add(*policy_applications)
+            if new_pa:
+                changed_fields.append(
+                    "policy_applications+=" + ",".join(pa.code for pa in new_pa)
+                )
+
             derived_networks = [
                 pa.network for pa in policy_applications if pa.network_id
             ]
             all_networks = list({n.pk: n for n in (derived_networks + (networks or []))}.values())
             if all_networks:
+                existing_net_ids = set(contract.networks.values_list("pk", flat=True))
+                new_networks = [n for n in all_networks if n.pk not in existing_net_ids]
                 contract.networks.add(*all_networks)
+                if new_networks:
+                    changed_fields.append(
+                        "networks+=" + ",".join(n.name for n in new_networks)
+                    )
         elif networks is not None:
+            existing_net_ids = set(contract.networks.values_list("pk", flat=True))
+            new_networks = [n for n in networks if n.pk not in existing_net_ids]
             contract.networks.add(*networks)
+            if new_networks:
+                changed_fields.append(
+                    "networks+=" + ",".join(n.name for n in new_networks)
+                )
 
-        return contract, created
+        return contract, created, changed_fields
 
     @staticmethod
     def _build_slug(name: str, province_name: str, district_name: str = "") -> str:

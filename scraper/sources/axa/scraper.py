@@ -179,7 +179,7 @@ class AxaScraper(BaseScraper):
 
         # 1. Saf kurum upsert (global dedup)
         # Var olan kurumda eksik (veya null olan ilçe vb.) alanlar varsa _upsert_institution otomatik günceller
-        inst = self._upsert_institution(
+        inst, inst_created, inst_changed_fields = self._upsert_institution(
             name=name,
             province_name=province.name,
             district_name=district_name,
@@ -191,11 +191,20 @@ class AxaScraper(BaseScraper):
             raw_payload=item,
         )
 
+        if inst_created:
+            job.append_log(
+                f"  + Yeni kurum oluşturuldu: '{inst.name}' (il={province.name}, ilçe={district_name or '-'}, tip={type_name or '-'})"
+            )
+        elif inst_changed_fields:
+            job.append_log(
+                f"  ~ Kurum güncellendi: '{inst.name}' (id={inst.pk}) — değişen alanlar: {', '.join(inst_changed_fields)}"
+            )
+
         # 2. Kurum anlaşması upsert (kurum kodu ile)
         kurum_kodu = str(item.get("Kurumkodu") or item.get("ID") or f"axa-missing-{inst.pk}")
         coverage = item.get("TamamlayiciUrunAnlasmaDurumu") or ""
 
-        contract, created = self._upsert_contract(
+        contract, created, contract_changed_fields = self._upsert_contract(
             institution=inst,
             company=company,
             product_type=product_type,
@@ -208,5 +217,19 @@ class AxaScraper(BaseScraper):
 
         if created:
             job.created_count += 1
+            job.append_log(
+                f"  + Yeni kontrat oluşturuldu: '{inst.name}' <-> {company.code}/{product_type.code} "
+                f"(external_id={kurum_kodu}, policy_app={policy_app.code}, service_id={policy_app.external_service_id})"
+            )
         else:
             job.updated_count += 1
+            if contract_changed_fields:
+                job.append_log(
+                    f"  ~ Kontrat güncellendi: '{inst.name}' <-> {company.code}/{product_type.code} "
+                    f"(external_id={kurum_kodu}) — değişen: {', '.join(contract_changed_fields)}"
+                )
+            else:
+                job.append_log(
+                    f"  = Kontrat zaten güncel: '{inst.name}' <-> {company.code}/{product_type.code} "
+                    f"(external_id={kurum_kodu}, policy_app={policy_app.code})"
+                )
