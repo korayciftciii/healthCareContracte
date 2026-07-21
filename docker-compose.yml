@@ -8,3 +8,5 @@ services:
     # bridge subneti için ayrıca izin açmaya gerek kalmaz. Linux'a özgüdür.
     network_mode: host
     restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
