@@ -76,6 +76,14 @@
     </div>
 </div>
 
+<style>
+    #log-console .log-line-error { color: #f87171; font-weight: 600; }
+    #log-console .log-line-warn { color: #fbbf24; }
+    #log-console .log-line-success { color: #34d399; font-weight: 600; }
+    #log-console .log-line-update { color: #60a5fa; }
+    #log-console .log-line-skip { color: #9ca3af; }
+</style>
+
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const wsStatusBadge = document.getElementById("ws-status-badge");
@@ -97,6 +105,32 @@ document.addEventListener("DOMContentLoaded", function() {
         const lines = text.split('\n').filter(Boolean).length;
         lineCount += lines;
         terminalLineCount.textContent = `${lineCount} satır`;
+    }
+
+    function escapeHtml(str) {
+        return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function classifyLine(line) {
+        if (/HATA|ERROR|FAILED|Beklenmeyen hata/i.test(line)) return "log-line-error";
+        if (/UYARI|WARNING/i.test(line)) return "log-line-warn";
+        if (/status=SUCCESS|^\s*\+ Yeni/i.test(line)) return "log-line-success";
+        if (/^\s*~ /.test(line)) return "log-line-update";
+        if (/^\s*= /.test(line)) return "log-line-skip";
+        return "";
+    }
+
+    function colorizeChunk(text) {
+        return text.split("\n").map(function(line) {
+            const escaped = escapeHtml(line);
+            const cls = classifyLine(line);
+            return cls ? `<span class="${cls}">${escaped}</span>` : escaped;
+        }).join("\n");
     }
 
     function updateBadge(status) {
@@ -168,14 +202,17 @@ document.addEventListener("DOMContentLoaded", function() {
             }
             else if (data.type === "log_chunk") {
                 if (isPaused) return;
-                logConsole.appendChild(document.createTextNode(data.content));
+                logConsole.insertAdjacentHTML("beforeend", colorizeChunk(data.content));
                 formatLineCount(data.content);
                 if (autoScrollCheck.checked) {
                     logConsole.scrollTop = logConsole.scrollHeight;
                 }
             }
             else if (data.type === "error") {
-                logConsole.appendChild(document.createTextNode(`\n[HATA]: ${data.message}\n`));
+                logConsole.insertAdjacentHTML(
+                    "beforeend",
+                    `\n<span class="log-line-error">[HATA]: ${escapeHtml(data.message)}</span>\n`
+                );
             }
         };
 
