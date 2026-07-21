@@ -23,9 +23,11 @@ class AxaClient:
     """
 
     BASE_URL = "https://www.axasigorta.com.tr/api/axa/contracted/GetHealthServices"
+    PAGE_URL = "https://www.axasigorta.com.tr/anlasmali-saglik-kurumlari"
 
     def __init__(self, session: requests.Session | None = None):
         self.session = session or self._build_session()
+        self._session_primed = False
 
     def _build_session(self) -> requests.Session:
         session = requests.Session()
@@ -50,6 +52,23 @@ class AxaClient:
             "X-Requested-With": "XMLHttpRequest",
         })
         return session
+
+    def _ensure_session_primed(self) -> None:
+        """AXA'nın WAF/session koruması, sayfa hiç ziyaret edilmeden yapılan POST
+        isteklerini 200 + boş body ile sessizce reddediyor. Cookie'leri (ör.
+        XSRF-TOKEN) almak için önce sayfayı bir kez GET ediyoruz."""
+        if self._session_primed:
+            return
+        try:
+            self.session.get(self.PAGE_URL, timeout=15)
+        except requests.RequestException:
+            pass
+        finally:
+            self._session_primed = True
+
+        xsrf_token = self.session.cookies.get("XSRF-TOKEN")
+        if xsrf_token:
+            self.session.headers["X-XSRF-TOKEN"] = xsrf_token
 
     def get_institutions(
         self,
@@ -90,6 +109,8 @@ class AxaClient:
             "ServiceId": str(service_id),
         }
 
+        self._ensure_session_primed()
+
         try:
             response = self.session.post(self.BASE_URL, json=payload, timeout=15)
         except requests.RequestException as exc:
@@ -103,7 +124,10 @@ class AxaClient:
         try:
             data = response.json()
         except ValueError as exc:
-            raise ScraperParseError(f"AXA API did not return valid JSON: {exc}") from exc
+            raise ScraperParseError(
+                f"AXA API did not return valid JSON ({city_name}, ServiceId={service_id}): {exc} "
+                f"body_len={len(response.text)} body_preview={response.text[:200]!r}"
+            ) from exc
 
         # AXA Response wrapper parsing:
         # { "result": { "restResponse": { "success": true, "content": [...] } } }
