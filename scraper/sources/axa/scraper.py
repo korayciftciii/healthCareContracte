@@ -1,4 +1,5 @@
 import time
+import random
 from typing import TYPE_CHECKING
 
 from django.utils import timezone
@@ -28,7 +29,10 @@ class AxaScraper(BaseScraper):
     """
 
     source_key = "axa"
-    DELAY_SECONDS = 0.3
+    # İstekler arası gecikme: WAF bot-davranış tespitini önlemek için
+    # insan benzeri rastgele jitter kullanılır (0.3 saniye çok agresif)
+    MIN_DELAY_SECONDS = 2.0
+    MAX_DELAY_SECONDS = 5.0
 
     def __init__(self, client: AxaClient | None = None):
         self.client = client or AxaClient()
@@ -147,7 +151,8 @@ class AxaScraper(BaseScraper):
         for item in items:
             self._upsert_item(job, company, product_type, province, policy_app, item)
 
-        time.sleep(self.DELAY_SECONDS)
+        delay = random.uniform(self.MIN_DELAY_SECONDS, self.MAX_DELAY_SECONDS)
+        time.sleep(delay)
 
     def _upsert_item(
         self,
