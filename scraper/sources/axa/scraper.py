@@ -139,7 +139,10 @@ class AxaScraper(BaseScraper):
         )
 
         job.pages_fetched += 1
-        job.save(update_fields=["pages_fetched"])
+        job.append_log(
+            f"{product_type.code}/{province.name}/ServiceId={service_id}: {len(items)} kurum bulundu."
+        )
+        job.save(update_fields=["pages_fetched", "log"])
 
         for item in items:
             self._upsert_item(job, company, product_type, province, policy_app, item)

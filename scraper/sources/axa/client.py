@@ -10,19 +10,19 @@ from scraper.exceptions import ScraperHTTPError, ScraperParseError
 class AxaClient:
     """AXA Sigorta kurumsal sitesi / API istemcisi.
 
-    Endpoint: POST https://www.axasigorta.com.tr/api/axa/contracted/GetHealthServiceTypes
+    Endpoint: POST https://www.axasigorta.com.tr/api/axa/contracted/GetHealthServices
     Payload şekli:
       {
           "PolicyType": "TAMAMLAYICI SİGORTA",
           "ServiceName": "",
-          "ServiceTypeName": "HASTANE",
+          "ServiceTypeName": "",
           "CityName": "BURSA",
           "DistrictName": "",
           "ServiceId": "17"
       }
     """
 
-    BASE_URL = "https://www.axasigorta.com.tr/api/axa/contracted/GetHealthServiceTypes"
+    BASE_URL = "https://www.axasigorta.com.tr/api/axa/contracted/GetHealthServices"
 
     def __init__(self, session: requests.Session | None = None):
         self.session = session or self._build_session()
@@ -39,14 +39,15 @@ class AxaClient:
         session.mount("https://", adapter)
         session.mount("http://", adapter)
         session.headers.update({
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json;charset=UTF-8",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Content-Type": "application/json",
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
             "Origin": "https://www.axasigorta.com.tr",
-            "Referer": "https://www.axasigorta.com.tr/anlasmali-kurumlar",
+            "Referer": "https://www.axasigorta.com.tr/anlasmali-saglik-kurumlari",
+            "X-Requested-With": "XMLHttpRequest",
         })
         return session
 
@@ -57,7 +58,7 @@ class AxaClient:
         service_id: str,
         city_name: str,
         district_name: str = "",
-        service_type_name: str = "HASTANE",
+        service_type_name: str = "",
     ) -> list[dict]:
         """AXA API'sinden belirli bir il/poliçe/servis ID için kurum listesini çeker.
 
