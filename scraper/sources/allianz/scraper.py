@@ -20,6 +20,33 @@ PARTITION_TYPE_BY_PRODUCT = {
     "OSS": "MDSG",
 }
 
+# Allianz "hospitalType" (instutionType query param'ı) -> bizim InstitutionType.code eşlemesi.
+# Allianz response'u kurum tipini DÖNMÜYOR — backend bu bilgiyi sorgu parametresine göre
+# filtreleyip gönderiyor. Bu yüzden her kurum tipini AYRI bir istekle taramak zorundayız;
+# bir kurum hangi hospitalType isteğinde döndüyse, tipi odur.
+ALLIANZ_HOSPITAL_TYPE_MAP = {
+    1: "HASTANE",
+    2: "TIP_MERKEZI",
+    5: "FIZIK_TEDAVI",
+    6: "LABORATUAR",
+    7: "TANI_GORUNTULEME",
+    9: "MEDIKAL",
+    10: "ASISTANS",
+    11: "EVDE_BAKIM",
+    17: "HASTANE",  # ÜNİVERSİTE HASTANESİ -> HASTANE'ye bağlanıyor
+    19: "BAKIM_EVI",
+}
+
+# Tamamlayıcı Sağlık (STSS) sorgularında taranacak hospitalType'lar
+_TSS_HOSPITAL_TYPES = [1, 2, 5, 9, 11, 17, 19]
+# Özel Sağlık (MDSG) sorgularında TSS'dekilere ek olarak LABORATUAR/ASİSTANS/TANI_GORUNTULEME de var
+_OSS_HOSPITAL_TYPES = _TSS_HOSPITAL_TYPES + [6, 7, 10]
+
+HOSPITAL_TYPES_BY_PRODUCT = {
+    "TSS": _TSS_HOSPITAL_TYPES,
+    "OSS": _OSS_HOSPITAL_TYPES,
+}
+
 
 @register("allianz")
 class AllianzScraper(BaseScraper):
@@ -71,6 +98,11 @@ class AllianzScraper(BaseScraper):
                     job.append_log(f"ATLANDI: Allianz için desteklenmeyen ürün tipi ({product_type.code}).")
                     continue
 
+                hospital_types = HOSPITAL_TYPES_BY_PRODUCT.get(product_type.code.upper(), [])
+                if not hospital_types:
+                    job.append_log(f"ATLANDI: {product_type.code} için taranacak hospitalType tanımlı değil.")
+                    continue
+
                 policy_apps = PolicyApplication.objects.filter(
                     company=company,
                     product_type=product_type,
@@ -87,21 +119,24 @@ class AllianzScraper(BaseScraper):
                         continue
 
                     for policy_app in policy_apps:
-                        try:
-                            self._scrape_network(
-                                job=job,
-                                company=company,
-                                product_type=product_type,
-                                province=province,
-                                partition_type_param=partition_type_param,
-                                policy_app=policy_app,
-                            )
-                        except ScraperError as exc:
-                            had_error = True
-                            job.error_message = str(exc)
-                            job.append_log(
-                                f"HATA (ALLIANZ/{product_type.code}/{province.name}/networkType={policy_app.external_service_id}): {exc}"
-                            )
+                        for hospital_type in hospital_types:
+                            try:
+                                self._scrape_network(
+                                    job=job,
+                                    company=company,
+                                    product_type=product_type,
+                                    province=province,
+                                    partition_type_param=partition_type_param,
+                                    policy_app=policy_app,
+                                    hospital_type=hospital_type,
+                                )
+                            except ScraperError as exc:
+                                had_error = True
+                                job.error_message = str(exc)
+                                job.append_log(
+                                    f"HATA (ALLIANZ/{product_type.code}/{province.name}/networkType={policy_app.external_service_id}"
+                                    f"/hospitalType={hospital_type}): {exc}"
+                                )
 
             job.status = ScrapeJob.Status.FAILED if had_error and job.result_count == 0 else (
                 ScrapeJob.Status.PARTIAL if had_error else ScrapeJob.Status.SUCCESS
@@ -130,26 +165,31 @@ class AllianzScraper(BaseScraper):
         province: Province,
         partition_type_param: str,
         policy_app: PolicyApplication,
+        hospital_type: int,
     ) -> None:
         network_type = policy_app.external_service_id
         if not network_type:
             return
+
+        institution_type_code = ALLIANZ_HOSPITAL_TYPE_MAP.get(hospital_type, "")
 
         try:
             items = self.client.get_institutions(
                 city_plate_code=province.plate_code,
                 partition_type=partition_type_param,
                 network_type=network_type,
+                institution_type=hospital_type,
             )
 
             job.pages_fetched += 1
             job.append_log(
-                f"{product_type.code}/{province.name}/networkType={network_type}: {len(items)} kurum bulundu."
+                f"{product_type.code}/{province.name}/networkType={network_type}/hospitalType={hospital_type}: "
+                f"{len(items)} kurum bulundu."
             )
             job.save(update_fields=["pages_fetched", "log"])
 
             for item in items:
-                self._upsert_item(job, company, product_type, province, policy_app, item)
+                self._upsert_item(job, company, product_type, province, policy_app, institution_type_code, item)
         finally:
             # Başarılı ya da hatalı olsun, bir sonraki isteğe geçmeden önce
             # her zaman rastgele bir gecikme uygulanır (banlanmayı önlemek için).
@@ -163,6 +203,7 @@ class AllianzScraper(BaseScraper):
         product_type: ProductType,
         province: Province,
         policy_app: PolicyApplication,
+        institution_type_code: str,
         item: dict,
     ) -> None:
         name = (item.get("instituteName") or "").strip()
@@ -189,6 +230,7 @@ class AllianzScraper(BaseScraper):
             name=name,
             province_name=province.name,
             district_name="",
+            institution_type_code=institution_type_code,
             address=address,
             phone=phone,
             latitude=lat,

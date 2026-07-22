@@ -53,6 +53,7 @@ class BaseScraper(ABC):
         province_name: str,
         district_name: str = "",
         institution_type_name: str = "",
+        institution_type_code: str = "",
         address: str = "",
         phone: str = "",
         latitude: float | None = None,
@@ -82,8 +83,14 @@ class BaseScraper(ABC):
                 or District.objects.filter(province=province_obj, name__icontains=district_name.strip()).first()
             )
 
+        # Kod biliniyorsa (örn. Allianz hospitalType eşlemesi) önce kod ile eşleştir;
+        # bulunamazsa serbest metin isim (örn. AXA "Tip" alanı) ile dene.
         institution_type_obj: InstitutionType | None = None
-        if institution_type_name:
+        if institution_type_code:
+            institution_type_obj = InstitutionType.objects.filter(
+                code__iexact=institution_type_code.strip(),
+            ).first()
+        if not institution_type_obj and institution_type_name:
             institution_type_obj = InstitutionType.objects.filter(
                 name__iexact=institution_type_name.strip(),
             ).first()
