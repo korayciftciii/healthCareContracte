@@ -27,10 +27,21 @@ NETWORKS = [
     {"company_code": "AXA", "product_type_code": "OSS", "name": "Network 1", "external_id": 34},
     {"company_code": "AXA", "product_type_code": "OSS", "name": "Network 2", "external_id": 38},
     {"company_code": "AXA", "product_type_code": "OSS", "name": "Network 3", "external_id": 44},
+
+    # Allianz - Tamamlayıcı Sağlık Sigortası (STSS) Networkleri
+    {"company_code": "ALLIANZ", "product_type_code": "TSS", "name": "Turkuaz Network", "external_id": 44},
+    {"company_code": "ALLIANZ", "product_type_code": "TSS", "name": "Turuncu Network", "external_id": 19},
+    {"company_code": "ALLIANZ", "product_type_code": "TSS", "name": "Kırmızı Network", "external_id": 55},
+
+    # Allianz - Modüler Sağlık Sigortası (MDSG / bizde Özel Sağlık - OSS) Networkleri
+    {"company_code": "ALLIANZ", "product_type_code": "OSS", "name": "Mavi Network", "external_id": 18},
+    {"company_code": "ALLIANZ", "product_type_code": "OSS", "name": "Yeşil Network", "external_id": 17},
+    {"company_code": "ALLIANZ", "product_type_code": "OSS", "name": "Sarı Network", "external_id": 16},
+    {"company_code": "ALLIANZ", "product_type_code": "OSS", "name": "Beyaz Network", "external_id": 15},
 ]
 
 # 3. Poliçe Uygulamaları (Policy Applications) Listesi
-POLICY_APPLICATIONS = [
+POLICY_AXA_APPLICATIONS = [
     # --- AXA TSS Poliçe Uygulamaları (network'ün kendisi doğrudan poliçe uygulamasıdır, alt kırılım yok) ---
     {
         "company_code": "AXA",
@@ -217,6 +228,71 @@ POLICY_APPLICATIONS = [
     },
 ]
 
+# --- Allianz Poliçe Uygulamaları ---
+# Allianz API'sinde ServiceId bazlı alt kırılım yoktur; her Network (networkType)
+# doğrudan bir PolicyApplication'dır (AXA TSS ile aynı desen — network kendisi poliçe uygulamasıdır).
+POLICY_ALLIANZ_APPLICATIONS = [
+    # STSS (Tamamlayıcı Sağlık Sigortası)
+    {
+        "company_code": "ALLIANZ",
+        "product_type_code": "TSS",
+        "network_name": "Turkuaz Network",
+        "name": "Turkuaz Network",
+        "code": "ALLIANZ_STSS_TURKUAZ",
+        "service_id": "44",
+    },
+    {
+        "company_code": "ALLIANZ",
+        "product_type_code": "TSS",
+        "network_name": "Turuncu Network",
+        "name": "Turuncu Network",
+        "code": "ALLIANZ_STSS_TURUNCU",
+        "service_id": "19",
+    },
+    {
+        "company_code": "ALLIANZ",
+        "product_type_code": "TSS",
+        "network_name": "Kırmızı Network",
+        "name": "Kırmızı Network",
+        "code": "ALLIANZ_STSS_KIRMIZI",
+        "service_id": "55",
+    },
+
+    # MDSG (Modüler Sağlık Sigortası — bizde Özel Sağlık / OSS)
+    {
+        "company_code": "ALLIANZ",
+        "product_type_code": "OSS",
+        "network_name": "Mavi Network",
+        "name": "Mavi Network",
+        "code": "ALLIANZ_MDSG_MAVI",
+        "service_id": "18",
+    },
+    {
+        "company_code": "ALLIANZ",
+        "product_type_code": "OSS",
+        "network_name": "Yeşil Network",
+        "name": "Yeşil Network",
+        "code": "ALLIANZ_MDSG_YESIL",
+        "service_id": "17",
+    },
+    {
+        "company_code": "ALLIANZ",
+        "product_type_code": "OSS",
+        "network_name": "Sarı Network",
+        "name": "Sarı Network",
+        "code": "ALLIANZ_MDSG_SARI",
+        "service_id": "16",
+    },
+    {
+        "company_code": "ALLIANZ",
+        "product_type_code": "OSS",
+        "network_name": "Beyaz Network",
+        "name": "Beyaz Network",
+        "code": "ALLIANZ_MDSG_BEYAZ",
+        "service_id": "15",
+    },
+]
+
 
 class Command(BaseCommand):
     help = "Şirketler, Networkler ve Poliçe Uygulamalarını veritabanına seed eder."
@@ -261,7 +337,7 @@ class Command(BaseCommand):
 
         # 3. Poliçe Uygulamalarını Ekle / Güncelle
         policy_app_count = 0
-        for app_data in POLICY_APPLICATIONS:
+        for app_data in POLICY_AXA_APPLICATIONS + POLICY_ALLIANZ_APPLICATIONS:
             try:
                 company = InsuranceCompany.objects.get(code=app_data["company_code"])
                 product_type = ProductType.objects.get(code=app_data["product_type_code"])
