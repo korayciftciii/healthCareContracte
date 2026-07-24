@@ -247,35 +247,53 @@ class AxaClient:
             try:
                 resp = self.session.post(self.BASE_URL, json=payload, timeout=20)
             except requests.RequestException as exc:
-                raise ScraperHTTPError(
-                    f"AXA API POST failed ({city_name}, ServiceId={service_id}): {exc}"
-                ) from exc
-
-            if self._is_waf_block(resp):
-                support_id = ""
-                try:
-                    # F5'in döndürdüğü destek ID'sini loglamak için parse et
-                    import re
-                    match = re.search(r"support ID is:\s*(\d+)", resp.text)
-                    if match:
-                        support_id = match.group(1)
-                except Exception:
-                    pass
-
                 if attempt >= self.WAF_MAX_RETRIES:
                     raise ScraperHTTPError(
-                        f"AXA API WAF tarafından engellendi ({city_name}, ServiceId={service_id}), "
-                        f"tüm denemeler tükendi (support_id={support_id}). "
-                        f"VM IP'si datacenter havuzunda olabilir; proxy gerekebilir."
+                        f"AXA API POST failed ({city_name}, ServiceId={service_id}): {exc}"
+                    ) from exc
+                delay = self.WAF_RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(1.0, 3.0)
+                logger.warning(
+                    "AXA API isteği başarısız (%s/ServiceId=%s, deneme=%d/%d): %s. "
+                    "%.1f saniye bekleniyor...",
+                    city_name, service_id, attempt + 1, self.WAF_MAX_RETRIES, exc, delay,
+                )
+                time.sleep(delay)
+                continue
+
+            waf_blocked = self._is_waf_block(resp)
+            retryable = waf_blocked or not resp.ok
+            if retryable:
+                support_id = ""
+                if waf_blocked:
+                    try:
+                        # F5'in döndürdüğü destek ID'sini loglamak için parse et
+                        import re
+                        match = re.search(r"support ID is:\s*(\d+)", resp.text)
+                        if match:
+                            support_id = match.group(1)
+                    except Exception:
+                        pass
+
+                last_response = resp
+                if attempt >= self.WAF_MAX_RETRIES:
+                    if waf_blocked:
+                        raise ScraperHTTPError(
+                            f"AXA API WAF tarafından engellendi ({city_name}, ServiceId={service_id}), "
+                            f"tüm denemeler tükendi (support_id={support_id}). "
+                            f"VM IP'si datacenter havuzunda olabilir; proxy gerekebilir."
+                        )
+                    raise ScraperHTTPError(
+                        f"AXA API isteği başarısız oldu ({city_name}, ServiceId={service_id}), "
+                        f"tüm denemeler ({self.WAF_MAX_RETRIES + 1}) tükendi. "
+                        f"status={resp.status_code}, body={resp.text[:300]!r}"
                     )
 
                 delay = self.WAF_RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(1.0, 3.0)
                 logger.warning(
-                    "WAF bloğu tespit edildi (%s/ServiceId=%s, support_id=%s, deneme=%d/%d). "
+                    "AXA API hata/blok şüphesi (%s/ServiceId=%s, support_id=%s, deneme=%d/%d, status=%s). "
                     "%.1f saniye bekleniyor ve session sıfırlanıyor...",
-                    city_name, service_id, support_id,
-                    attempt + 1, self.WAF_MAX_RETRIES,
-                    delay,
+                    city_name, service_id, support_id, attempt + 1, self.WAF_MAX_RETRIES,
+                    resp.status_code, delay,
                 )
                 time.sleep(delay)
                 self._reset_session()

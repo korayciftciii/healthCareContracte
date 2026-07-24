@@ -136,23 +136,26 @@ class AxaScraper(BaseScraper):
         if not service_id:
             return
 
-        items = self.client.get_institutions(
-            policy_type=policy_type_param,
-            service_id=service_id,
-            city_name=province.name,
-        )
+        try:
+            items = self.client.get_institutions(
+                policy_type=policy_type_param,
+                service_id=service_id,
+                city_name=province.name,
+            )
 
-        job.pages_fetched += 1
-        job.append_log(
-            f"{product_type.code}/{province.name}/ServiceId={service_id}: {len(items)} kurum bulundu."
-        )
-        job.save(update_fields=["pages_fetched", "log"])
+            job.pages_fetched += 1
+            job.append_log(
+                f"{product_type.code}/{province.name}/ServiceId={service_id}: {len(items)} kurum bulundu."
+            )
+            job.save(update_fields=["pages_fetched", "log"])
 
-        for item in items:
-            self._upsert_item(job, company, product_type, province, policy_app, item)
-
-        delay = random.uniform(self.MIN_DELAY_SECONDS, self.MAX_DELAY_SECONDS)
-        time.sleep(delay)
+            for item in items:
+                self._upsert_item(job, company, product_type, province, policy_app, item)
+        finally:
+            # Başarılı ya da hatalı olsun, bir sonraki isteğe geçmeden önce
+            # her zaman rastgele bir gecikme uygulanır (banlanmayı önlemek için).
+            delay = random.uniform(self.MIN_DELAY_SECONDS, self.MAX_DELAY_SECONDS)
+            time.sleep(delay)
 
     def _upsert_item(
         self,
