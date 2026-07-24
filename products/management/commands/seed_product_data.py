@@ -21,6 +21,8 @@ INSTITUTION_TYPES = [
     {"code": "BAKIM_EVI", "name": "Bakım Evi"},
     {"code": "LABORATUAR", "name": "Laboratuvar"},
     {"code": "ASISTANS", "name": "Asistans"},
+    {"code": "ECZANE", "name": "Eczane"},
+    {"code": "DIGER", "name": "Diğer"},
 ]
 
 class Command(BaseCommand):

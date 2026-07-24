@@ -38,6 +38,17 @@ NETWORKS = [
     {"company_code": "ALLIANZ", "product_type_code": "OSS", "name": "Yeşil Network", "external_id": 17},
     {"company_code": "ALLIANZ", "product_type_code": "OSS", "name": "Sarı Network", "external_id": 16},
     {"company_code": "ALLIANZ", "product_type_code": "OSS", "name": "Beyaz Network", "external_id": 15},
+
+    # Anadolu - Tamamlayıcı Sağlık Sigortası (TSS) Networkleri
+    # external_id burada Anadolu'nun networkCodes payload'ındaki metinsel kod (string)
+    {"company_code": "ANADOLU", "product_type_code": "TSS", "name": "Tamamlayıcı Network", "external_id": "TSS_Tamamlayıcı"},
+    {"company_code": "ANADOLU", "product_type_code": "TSS", "name": "Tamamlayıcı Eko Network", "external_id": "TSS_Tamamlayıcı_Eko"},
+
+    # Anadolu - Özel Sağlık Sigortası (ÖSS) Networkleri
+    {"company_code": "ANADOLU", "product_type_code": "OSS", "name": "Geniş Network", "external_id": "AHN"},
+    {"company_code": "ANADOLU", "product_type_code": "OSS", "name": "Tüm Network", "external_id": "S"},
+    {"company_code": "ANADOLU", "product_type_code": "OSS", "name": "Eko Network", "external_id": "E"},
+    {"company_code": "ANADOLU", "product_type_code": "OSS", "name": "VKV Network", "external_id": "VKV"},
 ]
 
 # 3. Poliçe Uygulamaları (Policy Applications) Listesi
@@ -294,6 +305,65 @@ POLICY_ALLIANZ_APPLICATIONS = [
 ]
 
 
+# --- Anadolu Poliçe Uygulamaları ---
+# Anadolu API'sinde de (Allianz gibi) ServiceId bazlı alt kırılım yoktur; her Network
+# doğrudan bir PolicyApplication'dır. external_service_id, networkCodes payload'ında
+# gönderilen metinsel network kodudur (örn. "TSS_Tamamlayıcı", "AHN").
+POLICY_ANADOLU_APPLICATIONS = [
+    # TSS (Tamamlayıcı Sağlık Sigortası)
+    {
+        "company_code": "ANADOLU",
+        "product_type_code": "TSS",
+        "network_name": "Tamamlayıcı Network",
+        "name": "Tamamlayıcı Network",
+        "code": "ANADOLU_TSS_TAMAMLAYICI",
+        "service_id": "TSS_Tamamlayıcı",
+    },
+    {
+        "company_code": "ANADOLU",
+        "product_type_code": "TSS",
+        "network_name": "Tamamlayıcı Eko Network",
+        "name": "Tamamlayıcı Eko Network",
+        "code": "ANADOLU_TSS_TAMAMLAYICI_EKO",
+        "service_id": "TSS_Tamamlayıcı_Eko",
+    },
+
+    # ÖSS (Özel Sağlık Sigortası)
+    {
+        "company_code": "ANADOLU",
+        "product_type_code": "OSS",
+        "network_name": "Geniş Network",
+        "name": "Geniş Network",
+        "code": "ANADOLU_OSS_GENIS",
+        "service_id": "AHN",
+    },
+    {
+        "company_code": "ANADOLU",
+        "product_type_code": "OSS",
+        "network_name": "Tüm Network",
+        "name": "Tüm Network",
+        "code": "ANADOLU_OSS_TUM",
+        "service_id": "S",
+    },
+    {
+        "company_code": "ANADOLU",
+        "product_type_code": "OSS",
+        "network_name": "Eko Network",
+        "name": "Eko Network",
+        "code": "ANADOLU_OSS_EKO",
+        "service_id": "E",
+    },
+    {
+        "company_code": "ANADOLU",
+        "product_type_code": "OSS",
+        "network_name": "VKV Network",
+        "name": "VKV Network",
+        "code": "ANADOLU_OSS_VKV",
+        "service_id": "VKV",
+    },
+]
+
+
 class Command(BaseCommand):
     help = "Şirketler, Networkler ve Poliçe Uygulamalarını veritabanına seed eder."
 
@@ -337,7 +407,7 @@ class Command(BaseCommand):
 
         # 3. Poliçe Uygulamalarını Ekle / Güncelle
         policy_app_count = 0
-        for app_data in POLICY_AXA_APPLICATIONS + POLICY_ALLIANZ_APPLICATIONS:
+        for app_data in POLICY_AXA_APPLICATIONS + POLICY_ALLIANZ_APPLICATIONS + POLICY_ANADOLU_APPLICATIONS:
             try:
                 company = InsuranceCompany.objects.get(code=app_data["company_code"])
                 product_type = ProductType.objects.get(code=app_data["product_type_code"])

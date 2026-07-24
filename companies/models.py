@@ -29,7 +29,9 @@ class Network(models.Model):
     product_type = models.ForeignKey(
         "products.ProductType", on_delete=models.CASCADE, related_name="networks",
     )
-    external_id = models.PositiveIntegerField(null=True, blank=True)
+    # Şirketin kendi network kodu — AXA/Allianz'da sayısal (ServiceId/networkType),
+    # Anadolu'da metinsel (örn. "TSS_Tamamlayıcı", "AHN") olabildiği için CharField.
+    external_id = models.CharField(max_length=50, null=True, blank=True)
     name = models.CharField(max_length=120)
     shown_by_default = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

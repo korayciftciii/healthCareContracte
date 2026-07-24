@@ -10,6 +10,11 @@ class ScrapeJob(models.Model):
         PARTIAL = "PARTIAL", "Kısmi Başarılı"
         FAILED = "FAILED", "Başarısız"
 
+    class SourceKey(models.TextChoices):
+        AXA = "axa", "AXA"
+        ALLIANZ = "allianz", "Allianz"
+        ANADOLU = "anadolu", "Anadolu"
+
     company = models.ForeignKey(
         "companies.InsuranceCompany", null=True, blank=True,
         on_delete=models.PROTECT, related_name="scrape_jobs",
@@ -36,7 +41,7 @@ class ScrapeJob(models.Model):
 
     # Hangi scraper plugin'inin kullandığı — "axa", "allianz" vb.
     source_key = models.CharField(
-        max_length=50, default="axa", blank=True,
+        max_length=50, choices=SourceKey.choices, default=SourceKey.AXA, blank=True,
         help_text="Scraper plugin anahtarı. Boş bırakılırsa 'axa' varsayılır.",
     )
 
