@@ -32,7 +32,8 @@ class ScrapeJobRunner:
             return
 
         # Başlangıç logunu ve dosya yolunu (logs/AXA/...) oluştur/kaydet
-        job.append_log(f"Arka plan işlemi başlatıldı. PID: {os.getpid()}")
+        job.pid = os.getpid()
+        job.append_log(f"Arka plan işlemi başlatıldı. PID: {job.pid}")
         job.save()
 
         scraper = scraper_cls()

@@ -46,6 +46,10 @@ class ScrapeJob(models.Model):
     )
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    pid = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Job'u çalıştıran worker process'in PID'i (log stream panelinde gösterilir).",
+    )
     triggered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="scrape_jobs",

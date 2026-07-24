@@ -31,12 +31,22 @@ ANADOLU_INSTITUTION_TYPE_MAP = {
     "HASTANE": "HASTANE",
     "Diğer": "DIGER",
     "Eczane": "ECZANE",
-    "Tıbbı Malzeme Cihaz": "MEDIKAL",
+    "Tıbbi Malzeme Cihaz": "MEDIKAL",
     "Evde Bakım Merkezi": "EVDE_BAKIM",
     "Teşhis Tanı Merkezi": "TANI_GORUNTULEME",
     "DOKTOR": "DOKTOR",
-    "Atm Tıp Merkezi": "TIP_MERKEZI",
+    "ATM Tıp Merkezi": "TIP_MERKEZI",
 }
+
+
+def _normalize_tr(value: str) -> str:
+    """Türkçe İ/I/ı/i varyasyonlarını (Anadolu response'unda tutarsız gelebiliyor)
+    tek bir forma indirger, böylece eşleme büyük/küçük harf veya noktalı/noktasız
+    ı-i farkından etkilenmez."""
+    return value.strip().replace("İ", "i").replace("I", "i").replace("ı", "i").lower()
+
+
+_ANADOLU_TYPE_LOOKUP = {_normalize_tr(k): v for k, v in ANADOLU_INSTITUTION_TYPE_MAP.items()}
 
 
 @register("anadolu")
@@ -194,7 +204,7 @@ class AnadoluScraper(BaseScraper):
             return
 
         type_name = (item.get("type") or "").strip()
-        institution_type_code = ANADOLU_INSTITUTION_TYPE_MAP.get(type_name, "")
+        institution_type_code = _ANADOLU_TYPE_LOOKUP.get(_normalize_tr(type_name), "")
 
         address = item.get("address") or ""
         phone = item.get("phone") or ""
