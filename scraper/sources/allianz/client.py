@@ -28,11 +28,12 @@ class AllianzClient:
           "partitionType": "MDSG",    # MDSG=Modüler Sağlık(ÖSS), STSS=Tamamlayıcı Sağlık(TSS)
       }
 
-    Not: "district" parametresi bilinçli olarak GÖNDERİLMİYOR — ilçe verilmezse
-    Allianz o ilin TÜM kurumlarını döner. İlçe bilgisi response'ta hiç gelmediği
-    için (sadece serbest metin "address" var), kurumun district alanı bu kaynaktan
-    doldurulamaz; eksik ilçe bilgisi yalnızca başka bir kaynak (örn. AXA) veya
-    manuel güncelleme ile tamamlanabilir.
+    Not: "district" parametresi opsiyoneldir — verilmezse Allianz o ilin TÜM
+    kurumlarını döner. search response'unda ilçe bilgisi hiç gelmediği için
+    (sadece serbest metin "address" var), ilçeyi doğru şekilde kaydedebilmek
+    amacıyla önce valueSetter API'sinden (valueType=DISTRICTS) o ile ait ilçe
+    id/isim listesi çekilir, sonra her ilçe id'si search isteğine "district"
+    parametresi olarak eklenerek kurumlar ilçe bazında toplanır (bkz. get_districts).
 
     Response şekli:
       {
@@ -59,6 +60,7 @@ class AllianzClient:
     """
 
     BASE_URL = "https://digitall.allianz.com.tr/oneweb-health-module-backend/api/myHealth/search"
+    VALUE_SETTER_URL = "https://digitall.allianz.com.tr/oneweb-health-module-backend/api/myHealth/valueSetter"
     PAGE_URL = "https://digitall.allianz.com.tr/"
 
     # Fixed/varsayılan API parametreleri (Allianz tarafında sabit gözüküyor)
@@ -154,6 +156,35 @@ class AllianzClient:
             return True
         return False
 
+    def get_districts(self, *, city_plate_code: str) -> list[dict]:
+        """Bir il için Allianz ilçe listesini döner (valueSetter API, valueType=DISTRICTS).
+
+        Dönen her öğe: {"key": "0118" (ilçe id), "value": "TUFANBEYLİ" (ilçe adı), "keyX": "TR"}
+        """
+        city = str(city_plate_code).zfill(2)
+        data = {
+            "valueType": "DISTRICTS",
+            "country": self.DEFAULT_COUNTRY,
+            "city": city,
+        }
+
+        self._ensure_session_primed()
+
+        response = self._post_form_with_retry(data=data, context=f"city={city}/valueType=DISTRICTS")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise ScraperParseError(
+                f"Allianz valueSetter API did not return valid JSON (city={city}): "
+                f"{exc} body_len={len(response.text)} body_preview={response.text[:200]!r}"
+            ) from exc
+
+        content = payload.get("response") or []
+        if not isinstance(content, list):
+            return []
+        return content
+
     def get_institutions(
         self,
         *,
@@ -161,10 +192,12 @@ class AllianzClient:
         partition_type: str,
         network_type: int | str,
         institution_type: int | None = None,
+        district: str | None = None,
     ) -> list[dict]:
         """Allianz API'sinden belirli bir il/poliçe tipi/network için kurum listesini çeker.
 
-        district parametresi kasıtlı olarak gönderilmez (bkz. sınıf docstring).
+        district parametresi verilirse (ilçe id, örn. "0118") istek o ilçeyle
+        sınırlandırılır; verilmezse ilin TÜM kurumları döner (bkz. sınıf docstring).
         """
         params = {
             "serviceType": self.DEFAULT_SERVICE_TYPE,
@@ -174,6 +207,8 @@ class AllianzClient:
             "networkType": network_type,
             "partitionType": partition_type,
         }
+        if district:
+            params["district"] = district
 
         self._ensure_session_primed()
 
@@ -251,6 +286,55 @@ class AllianzClient:
                     "Allianz API hata/blok şüphesi (city=%s, networkType=%s, deneme=%d/%d, %s). "
                     "%.1f saniye bekleniyor ve session sıfırlanıyor...",
                     city_plate_code, network_type, attempt + 1, self.BLOCK_MAX_RETRIES, last_error_detail, delay,
+                )
+                time.sleep(delay)
+                self._reset_session()
+                continue
+
+            last_response = resp
+            break
+
+        return last_response  # type: ignore[return-value]
+
+    def _post_form_with_retry(self, *, data: dict, context: str) -> requests.Response:
+        """valueSetter gibi form-urlencoded endpoint'ler için _post_with_retry ile aynı
+        blok/backoff mantığını uygular."""
+        last_response: requests.Response | None = None
+        last_error_detail = ""
+        headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
+
+        for attempt in range(self.BLOCK_MAX_RETRIES + 1):
+            try:
+                resp = self.session.post(self.VALUE_SETTER_URL, data=data, headers=headers, timeout=20)
+            except requests.RequestException as exc:
+                if attempt >= self.BLOCK_MAX_RETRIES:
+                    raise ScraperHTTPError(f"Allianz valueSetter API POST failed ({context}): {exc}") from exc
+                delay = self.BLOCK_RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(1.0, 3.0)
+                logger.warning(
+                    "Allianz valueSetter isteği başarısız (%s, deneme=%d/%d): %s. %.1f saniye bekleniyor...",
+                    context, attempt + 1, self.BLOCK_MAX_RETRIES, exc, delay,
+                )
+                time.sleep(delay)
+                continue
+
+            retryable = self._looks_blocked(resp) or not resp.ok
+            if retryable:
+                last_response = resp
+                last_error_detail = (
+                    f"status={resp.status_code}, content_type={resp.headers.get('Content-Type')}, "
+                    f"body={resp.text[:300]!r}"
+                )
+                if attempt >= self.BLOCK_MAX_RETRIES:
+                    raise ScraperHTTPError(
+                        f"Allianz valueSetter isteği başarısız oldu ({context}), "
+                        f"tüm denemeler ({self.BLOCK_MAX_RETRIES + 1}) tükendi. {last_error_detail}"
+                    )
+
+                delay = self.BLOCK_RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(1.0, 3.0)
+                logger.warning(
+                    "Allianz valueSetter hata/blok şüphesi (%s, deneme=%d/%d, %s). "
+                    "%.1f saniye bekleniyor ve session sıfırlanıyor...",
+                    context, attempt + 1, self.BLOCK_MAX_RETRIES, last_error_detail, delay,
                 )
                 time.sleep(delay)
                 self._reset_session()

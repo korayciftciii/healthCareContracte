@@ -54,7 +54,10 @@ class AllianzScraper(BaseScraper):
 
     Allianz API'sinde ServiceId bazlı alt kırılım yoktur; her Network (networkType)
     doğrudan bir PolicyApplication'a karşılık gelir (AXA TSS ile aynı desen).
-    İl bazlı taranır (district gönderilmez — o ilin TÜM kurumları gelir).
+    search response'unda ilçe bilgisi gelmediği için önce valueSetter API'sinden
+    (valueType=DISTRICTS) o ile ait ilçe id/isim listesi çekilip il başına bellekte
+    önbelleklenir; ardından her ilçe id'si search isteğine "district" parametresi
+    olarak eklenerek kurumlar ilçe bazında taranır ve district alanı doldurulur.
     Senkronize edilen her kurum HealthInstitution tablosunda tekelleştirilir,
     eksik alanları güncellenir ve PolicyApplication üzerinden InstitutionContract'a bağlanır.
     """
@@ -88,6 +91,11 @@ class AllianzScraper(BaseScraper):
         )
 
         had_error = False
+        # İl plaka kodu -> ilçe listesi ([{"key": "0118", "value": "TUFANBEYLİ"}, ...]) önbelleği.
+        # Aynı il birden fazla ürün/networkType için taranacağından ilçe listesi il başına
+        # bir kez çekilip bellekte tutulur.
+        self._district_cache: dict[str, list[dict]] = {}
+
         try:
             product_types = self._resolve_product_types(job)
             provinces = self._resolve_provinces(job)
@@ -118,25 +126,38 @@ class AllianzScraper(BaseScraper):
                         job.append_log(f"ATLANDI: '{province.name}' için plaka kodu tanımlı değil.")
                         continue
 
-                    for policy_app in policy_apps:
-                        for hospital_type in hospital_types:
-                            try:
-                                self._scrape_network(
-                                    job=job,
-                                    company=company,
-                                    product_type=product_type,
-                                    province=province,
-                                    partition_type_param=partition_type_param,
-                                    policy_app=policy_app,
-                                    hospital_type=hospital_type,
-                                )
-                            except ScraperError as exc:
-                                had_error = True
-                                job.error_message = str(exc)
-                                job.append_log(
-                                    f"HATA (ALLIANZ/{product_type.code}/{province.name}/networkType={policy_app.external_service_id}"
-                                    f"/hospitalType={hospital_type}): {exc}"
-                                )
+                    districts = self._get_districts_cached(job, province)
+                    if not districts:
+                        job.append_log(f"UYARI: '{province.name}' için ilçe listesi alınamadı, il taranamıyor.")
+                        continue
+
+                    for district in districts:
+                        district_id = district.get("key")
+                        district_name = (district.get("value") or "").strip()
+                        if not district_id:
+                            continue
+
+                        for policy_app in policy_apps:
+                            for hospital_type in hospital_types:
+                                try:
+                                    self._scrape_network(
+                                        job=job,
+                                        company=company,
+                                        product_type=product_type,
+                                        province=province,
+                                        partition_type_param=partition_type_param,
+                                        policy_app=policy_app,
+                                        hospital_type=hospital_type,
+                                        district_id=district_id,
+                                        district_name=district_name,
+                                    )
+                                except ScraperError as exc:
+                                    had_error = True
+                                    job.error_message = str(exc)
+                                    job.append_log(
+                                        f"HATA (ALLIANZ/{product_type.code}/{province.name}/{district_name}"
+                                        f"/networkType={policy_app.external_service_id}/hospitalType={hospital_type}): {exc}"
+                                    )
 
             job.status = ScrapeJob.Status.FAILED if had_error and job.result_count == 0 else (
                 ScrapeJob.Status.PARTIAL if had_error else ScrapeJob.Status.SUCCESS
@@ -156,6 +177,24 @@ class AllianzScraper(BaseScraper):
             return [job.product_type]
         return list(ProductType.objects.filter(code__in=["TSS", "OSS"]))
 
+    def _get_districts_cached(self, job: ScrapeJob, province: Province) -> list[dict]:
+        """İl için ilçe listesini valueSetter API'sinden çeker ve bellekte önbelleğe alır."""
+        plate_code = province.plate_code
+        if plate_code in self._district_cache:
+            return self._district_cache[plate_code]
+
+        try:
+            districts = self.client.get_districts(city_plate_code=plate_code)
+        except ScraperError as exc:
+            job.append_log(f"HATA (ALLIANZ/ilçe listesi/{province.name}): {exc}")
+            districts = []
+        finally:
+            delay = random.uniform(self.MIN_DELAY_SECONDS, self.MAX_DELAY_SECONDS)
+            time.sleep(delay)
+
+        self._district_cache[plate_code] = districts
+        return districts
+
     def _scrape_network(
         self,
         *,
@@ -166,6 +205,8 @@ class AllianzScraper(BaseScraper):
         partition_type_param: str,
         policy_app: PolicyApplication,
         hospital_type: int,
+        district_id: str,
+        district_name: str,
     ) -> None:
         network_type = policy_app.external_service_id
         if not network_type:
@@ -179,17 +220,18 @@ class AllianzScraper(BaseScraper):
                 partition_type=partition_type_param,
                 network_type=network_type,
                 institution_type=hospital_type,
+                district=district_id,
             )
 
             job.pages_fetched += 1
             job.append_log(
-                f"{product_type.code}/{province.name}/networkType={network_type}/hospitalType={hospital_type}: "
-                f"{len(items)} kurum bulundu."
+                f"{product_type.code}/{province.name}/{district_name}/networkType={network_type}"
+                f"/hospitalType={hospital_type}: {len(items)} kurum bulundu."
             )
             job.save(update_fields=["pages_fetched", "log"])
 
             for item in items:
-                self._upsert_item(job, company, product_type, province, policy_app, institution_type_code, item)
+                self._upsert_item(job, company, product_type, province, district_name, policy_app, institution_type_code, item)
         finally:
             # Başarılı ya da hatalı olsun, bir sonraki isteğe geçmeden önce
             # her zaman rastgele bir gecikme uygulanır (banlanmayı önlemek için).
@@ -202,6 +244,7 @@ class AllianzScraper(BaseScraper):
         company: InsuranceCompany,
         product_type: ProductType,
         province: Province,
+        district_name: str,
         policy_app: PolicyApplication,
         institution_type_code: str,
         item: dict,
@@ -223,13 +266,13 @@ class AllianzScraper(BaseScraper):
         except (ValueError, TypeError):
             pass
 
-        # Allianz response'unda ilçe bilgisi yok (sadece serbest metin address).
-        # 1. Saf kurum upsert (global dedup) — district_name boş geçilir,
-        # mevcut kurumda ilçe zaten varsa dokunulmaz, yoksa null kalır.
+        # Allianz search response'unda ilçe bilgisi yok (sadece serbest metin address),
+        # bu yüzden ilçe adı valueSetter API'sinden çekilen district_name ile geçirilir.
+        # 1. Saf kurum upsert (global dedup)
         inst, inst_created, inst_changed_fields = self._upsert_institution(
             name=name,
             province_name=province.name,
-            district_name="",
+            district_name=district_name,
             institution_type_code=institution_type_code,
             address=address,
             phone=phone,
