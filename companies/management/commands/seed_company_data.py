@@ -49,6 +49,17 @@ NETWORKS = [
     {"company_code": "ANADOLU", "product_type_code": "OSS", "name": "Tüm Network", "external_id": "S"},
     {"company_code": "ANADOLU", "product_type_code": "OSS", "name": "Eko Network", "external_id": "E"},
     {"company_code": "ANADOLU", "product_type_code": "OSS", "name": "VKV Network", "external_id": "VKV"},
+
+    # Mapfre - Özel Sağlık Sigortası (OSS) Networkleri
+    {"company_code": "MAPFRE", "product_type_code": "OSS", "name": "A Network", "external_id": "65"},
+    {"company_code": "MAPFRE", "product_type_code": "OSS", "name": "B Network", "external_id": "68"},
+    {"company_code": "MAPFRE", "product_type_code": "OSS", "name": "C Network", "external_id": "72"},
+    {"company_code": "MAPFRE", "product_type_code": "OSS", "name": "B1 Network", "external_id": "114"},
+
+    # Mapfre - Tamamlayıcı Sağlık Sigortası (TSS) Networkleri
+    {"company_code": "MAPFRE", "product_type_code": "TSS", "name": "TSS Eko Network", "external_id": "82"},
+    {"company_code": "MAPFRE", "product_type_code": "TSS", "name": "TSS Katılımlı Network", "external_id": "107"},
+    {"company_code": "MAPFRE", "product_type_code": "TSS", "name": "TSS Standart Network", "external_id": "73"},
 ]
 
 # 3. Poliçe Uygulamaları (Policy Applications) Listesi
@@ -364,6 +375,72 @@ POLICY_ANADOLU_APPLICATIONS = [
 ]
 
 
+# --- Mapfre Poliçe Uygulamaları ---
+# Mapfre API'sinde de (Allianz/Anadolu gibi) ServiceId bazlı alt kırılım yoktur;
+# her Network (networkTypeCode) doğrudan bir PolicyApplication'dır.
+POLICY_MAPFRE_APPLICATIONS = [
+    # OSS (Özel Sağlık Sigortası)
+    {
+        "company_code": "MAPFRE",
+        "product_type_code": "OSS",
+        "network_name": "A Network",
+        "name": "A Network",
+        "code": "MAPFRE_OSS_A",
+        "service_id": "65",
+    },
+    {
+        "company_code": "MAPFRE",
+        "product_type_code": "OSS",
+        "network_name": "B Network",
+        "name": "B Network",
+        "code": "MAPFRE_OSS_B",
+        "service_id": "68",
+    },
+    {
+        "company_code": "MAPFRE",
+        "product_type_code": "OSS",
+        "network_name": "C Network",
+        "name": "C Network",
+        "code": "MAPFRE_OSS_C",
+        "service_id": "72",
+    },
+    {
+        "company_code": "MAPFRE",
+        "product_type_code": "OSS",
+        "network_name": "B1 Network",
+        "name": "B1 Network",
+        "code": "MAPFRE_OSS_B1",
+        "service_id": "114",
+    },
+
+    # TSS (Tamamlayıcı Sağlık Sigortası)
+    {
+        "company_code": "MAPFRE",
+        "product_type_code": "TSS",
+        "network_name": "TSS Eko Network",
+        "name": "TSS Eko Network",
+        "code": "MAPFRE_TSS_EKO",
+        "service_id": "82",
+    },
+    {
+        "company_code": "MAPFRE",
+        "product_type_code": "TSS",
+        "network_name": "TSS Katılımlı Network",
+        "name": "TSS Katılımlı Network",
+        "code": "MAPFRE_TSS_KATILIMLI",
+        "service_id": "107",
+    },
+    {
+        "company_code": "MAPFRE",
+        "product_type_code": "TSS",
+        "network_name": "TSS Standart Network",
+        "name": "TSS Standart Network",
+        "code": "MAPFRE_TSS_STANDART",
+        "service_id": "73",
+    },
+]
+
+
 class Command(BaseCommand):
     help = "Şirketler, Networkler ve Poliçe Uygulamalarını veritabanına seed eder."
 
@@ -407,7 +484,7 @@ class Command(BaseCommand):
 
         # 3. Poliçe Uygulamalarını Ekle / Güncelle
         policy_app_count = 0
-        for app_data in POLICY_AXA_APPLICATIONS + POLICY_ALLIANZ_APPLICATIONS + POLICY_ANADOLU_APPLICATIONS:
+        for app_data in POLICY_AXA_APPLICATIONS + POLICY_ALLIANZ_APPLICATIONS + POLICY_ANADOLU_APPLICATIONS + POLICY_MAPFRE_APPLICATIONS:
             try:
                 company = InsuranceCompany.objects.get(code=app_data["company_code"])
                 product_type = ProductType.objects.get(code=app_data["product_type_code"])

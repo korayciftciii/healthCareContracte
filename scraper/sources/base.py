@@ -18,6 +18,19 @@ if TYPE_CHECKING:
     from scraper.models import ScrapeJob
 
 
+def _normalize_tr(value: str) -> str:
+    """Türkçe İ/I/ı/i harflerini tek bir forma indirger.
+
+    Postgres'in varsayılan (Türkçe olmayan) locale'inde UPPER()/LOWER() fonksiyonları
+    Türkçe'ye özgü nokta kurallarını bilmez: örn. 'i'.upper() -> 'I' (noktasız) verir,
+    oysa DB'de il/ilçe isimleri gerçek Türkçe büyük harfle ('İ', noktalı) saklanır.
+    Bu yüzden name__iexact/icontains gibi DB-taraflı case-insensitive karşılaştırmalar
+    "Yüreğir" gibi isimlerde sessizce eşleşmeyi kaçırabilir. Bu fonksiyon, il/ilçe
+    eşlemesini Python tarafında normalize ederek locale'den bağımsız hale getirir.
+    """
+    return value.strip().replace("İ", "i").replace("I", "i").replace("ı", "i").lower()
+
+
 class BaseScraper(ABC):
     """Şirket bazlı scraper için soyut temel sınıf.
 
@@ -71,17 +84,32 @@ class BaseScraper(ABC):
         """
         province_obj: Province | None = None
         if province_name:
-            province_obj = (
-                Province.objects.filter(name__iexact=province_name.strip()).first()
-                or Province.objects.filter(name__icontains=province_name.strip()).first()
-            )
+            target_province = _normalize_tr(province_name)
+            for p in Province.objects.all():
+                if _normalize_tr(p.name) == target_province:
+                    province_obj = p
+                    break
+            if not province_obj:
+                for p in Province.objects.all():
+                    norm_name = _normalize_tr(p.name)
+                    if target_province in norm_name or norm_name in target_province:
+                        province_obj = p
+                        break
 
         district_obj: District | None = None
         if district_name and province_obj:
-            district_obj = (
-                District.objects.filter(province=province_obj, name__iexact=district_name.strip()).first()
-                or District.objects.filter(province=province_obj, name__icontains=district_name.strip()).first()
-            )
+            target_district = _normalize_tr(district_name)
+            candidates = list(District.objects.filter(province=province_obj))
+            for d in candidates:
+                if _normalize_tr(d.name) == target_district:
+                    district_obj = d
+                    break
+            if not district_obj:
+                for d in candidates:
+                    norm_name = _normalize_tr(d.name)
+                    if target_district in norm_name or norm_name in target_district:
+                        district_obj = d
+                        break
 
         # Kod biliniyorsa (örn. Allianz hospitalType eşlemesi) önce kod ile eşleştir;
         # bulunamazsa serbest metin isim (örn. AXA "Tip" alanı) ile dene.

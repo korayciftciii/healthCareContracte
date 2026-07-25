@@ -1,0 +1,1 @@
+"""mapfre scraper package."""

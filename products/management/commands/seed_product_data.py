@@ -22,6 +22,7 @@ INSTITUTION_TYPES = [
     {"code": "LABORATUAR", "name": "Laboratuvar"},
     {"code": "ASISTANS", "name": "Asistans"},
     {"code": "ECZANE", "name": "Eczane"},
+    {"code": "AMBULANS", "name": "Ambulans"},
     {"code": "DIGER", "name": "Diğer"},
 ]
 

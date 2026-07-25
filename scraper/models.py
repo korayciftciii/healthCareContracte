@@ -14,6 +14,7 @@ class ScrapeJob(models.Model):
         AXA = "axa", "AXA"
         ALLIANZ = "allianz", "Allianz"
         ANADOLU = "anadolu", "Anadolu"
+        MAPFRE = "mapfre", "Mapfre"
 
     company = models.ForeignKey(
         "companies.InsuranceCompany", null=True, blank=True,
