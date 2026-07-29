@@ -1,0 +1,633 @@
+openapi: 3.0.3
+info:
+  title: Sağlık Kurumları Anlaşma Takip Sistemi API
+  version: 1.0.0
+  description: 'Sigorta şirketlerinin (AXA, HDI, Acıbadem, Türkiye, Anadolu, Allianz,
+    Mapfre) TSS/ÖSS ürünlerinde anlaşmalı olduğu sağlık kurumlarını sorgulamak için
+    Next.js backend''inin kullandığı salt-okunur API. Tüm endpoint''ler `Authorization:
+    Bearer <NEXTJS_MASTER_TOKEN>` header''ı gerektirir.'
+paths:
+  /api/v1/cities/:
+    get:
+      operationId: cities_list
+      description: Türkiye'nin 81 ilini plaka koduyla birlikte döner (tamamlayicisaglik.com'daki
+        cityId, plaka koduyla birebir aynıdır).
+      summary: İlleri listele
+      parameters:
+      - name: search
+        required: false
+        in: query
+        description: Bir arama terimi.
+        schema:
+          type: string
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/City'
+          description: ''
+  /api/v1/cities/{id
+}/:
+    get:
+      operationId: cities_retrieve
+      summary: Tek bir ilin detayı
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Bir İl öğesini tanımlayan benzersiz tamsayı değeri.
+        required: true
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/City'
+          description: ''
+  /api/v1/companies/:
+    get:
+      operationId: companies_list
+      description: Sistemde tanımlı 7 sigorta şirketini (AXA, HDI, Acıbadem, Türkiye,
+        Anadolu, Allianz, Mapfre) döner. Dropdown/filtre doldurmak için kullanılır.
+      summary: Sigorta şirketlerini listele
+      parameters:
+      - name: search
+        required: false
+        in: query
+        description: Bir arama terimi.
+        schema:
+          type: string
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InsuranceCompany'
+          description: ''
+  /api/v1/companies/{id
+}/:
+    get:
+      operationId: companies_retrieve
+      summary: Tek bir sigorta şirketinin detayı
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Bir Sigorta Şirketi öğesini tanımlayan benzersiz tamsayı değeri.
+        required: true
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsuranceCompany'
+          description: ''
+  /api/v1/districts/:
+    get:
+      operationId: districts_list
+      description: '`?city=<il id>` ile belirli bir ile ait ilçeleri filtreleyebilirsin.'
+      summary: İlçeleri listele
+      parameters:
+      - in: query
+        name: city
+        schema:
+          type: integer
+        description: İl id'sine göre filtrele (city/ ucundaki `id` alanı).
+      - name: search
+        required: false
+        in: query
+        description: Bir arama terimi.
+        schema:
+          type: string
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/District'
+          description: ''
+  /api/v1/districts/{id
+}/:
+    get:
+      operationId: districts_retrieve
+      summary: Tek bir ilçenin detayı
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Bir İlçe öğesini tanımlayan benzersiz tamsayı değeri.
+        required: true
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/District'
+          description: ''
+  /api/v1/institution-types/:
+    get:
+      operationId: institution_types_list
+      description: Hastane, Tıp Merkezi, Diş Hekimi, Optik, Medikal vb. — 9 kurum
+        türü.
+      summary: Kurum tiplerini listele
+      parameters:
+      - name: search
+        required: false
+        in: query
+        description: Bir arama terimi.
+        schema:
+          type: string
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InstitutionType'
+          description: ''
+  /api/v1/institution-types/{id
+}/:
+    get:
+      operationId: institution_types_retrieve
+      summary: Tek bir kurum tipinin detayı
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Bir Kurum Tipi öğesini tanımlayan benzersiz tamsayı değeri.
+        required: true
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstitutionType'
+          description: ''
+  /api/v1/institutions/:
+    get:
+      operationId: institutions_list
+      description: |-
+        Sigorta şirketi, il, ilçe, ürün tipi ve kurum tipine göre filtrelenebilen anlaşmalı kurum listesi. Bu, sistemin ana endpoint'idir — Next.js frontend'i büyük olasılıkla en çok bunu kullanacak.
+
+        Adres/telefon/koordinat bilgisi **yoktur** (kaynak site bu bilgileri sağlamıyor) — sadece isim, il/ilçe ve kurum tipi bilgisi vardır.
+      summary: Anlaşmalı sağlık kurumlarını sorgula
+      parameters:
+      - in: query
+        name: city__plate_code
+        schema:
+          type: integer
+        description: İl plaka kodu (örn. İstanbul için 34).
+      - in: query
+        name: company__code
+        schema:
+          type: string
+        description: Şirket kodu (AXA, HDI, ACIBADEM, TURKIYE, ANADOLU, ALLIANZ, MAPFRE).
+      - in: query
+        name: district
+        schema:
+          type: integer
+        description: İlçe id'si (districts/ endpoint'inden).
+      - in: query
+        name: institution_type__code
+        schema:
+          type: string
+        description: HASTANE, TIP_MERKEZI, DIS, OPTIK, MEDIKAL, FIZIK_TEDAVI, TANI_GORUNTULEME,
+          EVDE_BAKIM, DOKTOR.
+      - in: query
+        name: networks
+        schema:
+          type: string
+        description: Network id'sine göre filtrele (networks/ endpoint'inden gelen
+          `id`). Virgülle ayrılmış birden fazla id kabul eder (örn. `networks=25,
+26`)
+          — herhangi birine sahip kurumlar döner. Şirket seçilmemişse anlamsızdır;
+          company__code ile birlikte kullanılmalı.
+      - name: page
+        required: false
+        in: query
+        description: Sayfalanmış sonuç kümesinde bir sayfa numarası.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Her sayfada döndürülecek sonuç sayısı.
+        schema:
+          type: integer
+      - in: query
+        name: product_type__code
+        schema:
+          type: string
+        description: TSS veya OSS.
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Kurum adı/adresinde serbest metin arama.
+      tags:
+      - Sağlık Kurumları
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedHealthInstitutionList'
+          description: ''
+  /api/v1/institutions/{id
+}/:
+    get:
+      operationId: institutions_retrieve
+      summary: Tek bir sağlık kurumunun detayı
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Bir Sağlık Kurumu öğesini tanımlayan benzersiz tamsayı değeri.
+        required: true
+      tags:
+      - Sağlık Kurumları
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthInstitution'
+          description: ''
+  /api/v1/networks/:
+    get:
+      operationId: networks_list
+      description: Bir sigorta şirketinin bir ürün tipi (TSS/ÖSS) içindeki alt-kapsam
+        tier'ları (örn. AXA TSS için 'Sağlığım Tamam' / 'Tutumlu'). Aynı şirketin
+        TSS ve ÖSS network'leri tamamen farklıdır. `?company__code=` ve `?product_type__code=`
+        ile filtrelenir. Bazı şirketlerin (örn. Mapfre) hiç network'ü yoktur.
+      summary: Network'leri listele
+      parameters:
+      - in: query
+        name: company__code
+        schema:
+          type: string
+        description: Şirket kodu.
+      - in: query
+        name: product_type__code
+        schema:
+          type: string
+        description: TSS veya OSS.
+      - name: search
+        required: false
+        in: query
+        description: Bir arama terimi.
+        schema:
+          type: string
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Network'
+          description: ''
+  /api/v1/networks/{id
+}/:
+    get:
+      operationId: networks_retrieve
+      summary: Tek bir network'ün detayı
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Bir Network öğesini tanımlayan benzersiz tamsayı değeri.
+        required: true
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Network'
+          description: ''
+  /api/v1/product-types/:
+    get:
+      operationId: product_types_list
+      description: TSS (Tamamlayıcı Sağlık Sigortası) ve ÖSS (Özel Sağlık Sigortası).
+      summary: Ürün tiplerini listele
+      parameters:
+      - name: search
+        required: false
+        in: query
+        description: Bir arama terimi.
+        schema:
+          type: string
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductType'
+          description: ''
+  /api/v1/product-types/{id
+}/:
+    get:
+      operationId: product_types_retrieve
+      summary: Tek bir ürün tipinin detayı
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Bir Ürün Tipi öğesini tanımlayan benzersiz tamsayı değeri.
+        required: true
+      tags:
+      - Referans Veriler
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductType'
+          description: ''
+components:
+  schemas:
+    City:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 60
+        plate_code:
+          type: integer
+          maximum: 32767
+          minimum: 0
+      required:
+      - id
+      - name
+      - plate_code
+    District:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 80
+        city:
+          type: integer
+      required:
+      - city
+      - id
+      - name
+    HealthInstitution:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        external_id:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        name:
+          type: string
+          maxLength: 255
+        address:
+          type: string
+        phone:
+          type: string
+          maxLength: 30
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{
+    0,
+    3
+}(?:\.\d{
+    0,
+    6
+})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{
+    0,
+    3
+}(?:\.\d{
+    0,
+    6
+})?$
+          nullable: true
+        company:
+          type: string
+          readOnly: true
+        product_type:
+          type: string
+          readOnly: true
+        institution_type:
+          type: string
+          readOnly: true
+          nullable: true
+        city:
+          type: string
+          readOnly: true
+          nullable: true
+        district:
+          type: string
+          readOnly: true
+          nullable: true
+        networks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Network'
+          readOnly: true
+        is_active:
+          type: boolean
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - city
+      - company
+      - district
+      - external_id
+      - id
+      - institution_type
+      - name
+      - networks
+      - product_type
+    InstitutionType:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 60
+        code:
+          type: string
+          maxLength: 20
+      required:
+      - code
+      - id
+      - name
+    InsuranceCompany:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        code:
+          type: string
+          maxLength: 20
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_
+]+$
+        is_active:
+          type: boolean
+      required:
+      - code
+      - id
+      - name
+      - slug
+    Network:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        company:
+          type: string
+          readOnly: true
+        product_type:
+          type: string
+          readOnly: true
+        shown_by_default:
+          type: boolean
+      required:
+      - company
+      - id
+      - name
+      - product_type
+    PaginatedHealthInstitutionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http: //api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http: //api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthInstitution'
+    ProductType:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 80
+        code:
+          type: string
+          maxLength: 10
+      required:
+      - code
+      - id
+      - name
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Next.js backend'inin kullandığı sabit master token (NEXTJS_MASTER_TOKEN
+        ortam değişkeni ile aynı).
