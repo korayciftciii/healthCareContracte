@@ -60,6 +60,23 @@ NETWORKS = [
     {"company_code": "MAPFRE", "product_type_code": "TSS", "name": "TSS Eko Network", "external_id": "82"},
     {"company_code": "MAPFRE", "product_type_code": "TSS", "name": "TSS Katılımlı Network", "external_id": "107"},
     {"company_code": "MAPFRE", "product_type_code": "TSS", "name": "TSS Standart Network", "external_id": "73"},
+
+    # HDI - Özel Sağlık Sigortası (ÖSS) Networkleri
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "HDI SÜPER-TEMEL-AKILLI SAĞLIK", "external_id": "366"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "HDI PLATINIUM-GOLD-SILVER SAĞLIK", "external_id": "369"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "HDI PROMEDICO", "external_id": "373"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "Size Özel Doğum", "external_id": "383"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "Size Özel Seçimli Teminat ve Acil Sağlık", "external_id": "384"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "Size Özel Sağlık A1", "external_id": "385"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "Size Özel Sağlık A2", "external_id": "397"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "Size Özel Sağlık A3", "external_id": "400"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "Size Özel Sağlık A4", "external_id": "401"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "Yabancılara Özel Sağlık A6", "external_id": "403"},
+    # HDI - Tamamlayıcı Sağlık Sigortası (TSS) Networkleri
+    {"company_code": "HDI", "product_type_code": "TSS", "name": "Size Özel Tamamlayıcı Sağlık", "external_id": "405"},
+    # HDI - Hibrit Ürün (538): Hem TSS hem ÖSS kapsamında — her iki network'e eklenir
+    {"company_code": "HDI", "product_type_code": "TSS", "name": "HDI SİZE ÖZEL 2Sİ 1 ARADA SAĞLIK (TSS)", "external_id": "538"},
+    {"company_code": "HDI", "product_type_code": "OSS", "name": "HDI SİZE ÖZEL 2Sİ 1 ARADA SAĞLIK (ÖSS)", "external_id": "538"},
 ]
 
 # 3. Poliçe Uygulamaları (Policy Applications) Listesi
@@ -441,6 +458,121 @@ POLICY_MAPFRE_APPLICATIONS = [
 ]
 
 
+# --- HDI Poliçe Uygulamaları ---
+# HDI API'sinde her productId doğrudan bir PolicyApplication'dır.
+# service_id = productId (string olarak gönderilir).
+# Hibrit ürün (productId=538) hem TSS hem ÖSS olarak ikişer kez tanımlanır.
+POLICY_HDI_APPLICATIONS = [
+    # ÖSS (Özel Sağlık Sigortası)
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "HDI SÜPER-TEMEL-AKILLI SAĞLIK",
+        "name": "HDI SÜPER-TEMEL-AKILLI SAĞLIK",
+        "code": "HDI_OSS_366",
+        "service_id": "366",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "HDI PLATINIUM-GOLD-SILVER SAĞLIK",
+        "name": "HDI PLATINIUM-GOLD-SILVER SAĞLIK",
+        "code": "HDI_OSS_369",
+        "service_id": "369",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "HDI PROMEDICO",
+        "name": "HDI PROMEDICO",
+        "code": "HDI_OSS_373",
+        "service_id": "373",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "Size Özel Doğum",
+        "name": "Size Özel Doğum",
+        "code": "HDI_OSS_383",
+        "service_id": "383",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "Size Özel Seçimli Teminat ve Acil Sağlık",
+        "name": "Size Özel Seçimli Teminat ve Acil Sağlık",
+        "code": "HDI_OSS_384",
+        "service_id": "384",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "Size Özel Sağlık A1",
+        "name": "Size Özel Sağlık A1",
+        "code": "HDI_OSS_385",
+        "service_id": "385",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "Size Özel Sağlık A2",
+        "name": "Size Özel Sağlık A2",
+        "code": "HDI_OSS_397",
+        "service_id": "397",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "Size Özel Sağlık A3",
+        "name": "Size Özel Sağlık A3",
+        "code": "HDI_OSS_400",
+        "service_id": "400",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "Size Özel Sağlık A4",
+        "name": "Size Özel Sağlık A4",
+        "code": "HDI_OSS_401",
+        "service_id": "401",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "Yabancılara Özel Sağlık A6",
+        "name": "Yabancılara Özel Sağlık A6",
+        "code": "HDI_OSS_403",
+        "service_id": "403",
+    },
+    # TSS (Tamamlayıcı Sağlık Sigortası)
+    {
+        "company_code": "HDI",
+        "product_type_code": "TSS",
+        "network_name": "Size Özel Tamamlayıcı Sağlık",
+        "name": "Size Özel Tamamlayıcı Sağlık",
+        "code": "HDI_TSS_405",
+        "service_id": "405",
+    },
+    # Hibrit ürün (productId=538): hem TSS hem ÖSS kapsamında ikişer kayıt
+    {
+        "company_code": "HDI",
+        "product_type_code": "TSS",
+        "network_name": "HDI SİZE ÖZEL 2Sİ 1 ARADA SAĞLIK (TSS)",
+        "name": "HDI SİZE ÖZEL 2Sİ 1 ARADA SAĞLIK SİGORTASI",
+        "code": "HDI_TSS_538",
+        "service_id": "538",
+    },
+    {
+        "company_code": "HDI",
+        "product_type_code": "OSS",
+        "network_name": "HDI SİZE ÖZEL 2Sİ 1 ARADA SAĞLIK (ÖSS)",
+        "name": "HDI SİZE ÖZEL 2Sİ 1 ARADA SAĞLIK SİGORTASI",
+        "code": "HDI_OSS_538",
+        "service_id": "538",
+    },
+]
+
+
 class Command(BaseCommand):
     help = "Şirketler, Networkler ve Poliçe Uygulamalarını veritabanına seed eder."
 
@@ -484,7 +616,7 @@ class Command(BaseCommand):
 
         # 3. Poliçe Uygulamalarını Ekle / Güncelle
         policy_app_count = 0
-        for app_data in POLICY_AXA_APPLICATIONS + POLICY_ALLIANZ_APPLICATIONS + POLICY_ANADOLU_APPLICATIONS + POLICY_MAPFRE_APPLICATIONS:
+        for app_data in POLICY_AXA_APPLICATIONS + POLICY_ALLIANZ_APPLICATIONS + POLICY_ANADOLU_APPLICATIONS + POLICY_MAPFRE_APPLICATIONS + POLICY_HDI_APPLICATIONS:
             try:
                 company = InsuranceCompany.objects.get(code=app_data["company_code"])
                 product_type = ProductType.objects.get(code=app_data["product_type_code"])

@@ -56,3 +56,4 @@ from .axa import scraper as _axa_scraper  # noqa: E402, F401
 from .allianz import scraper as _allianz_scraper  # noqa: E402, F401
 from .anadolu import scraper as _anadolu_scraper  # noqa: E402, F401
 from .mapfre import scraper as _mapfre_scraper  # noqa: E402, F401
+from .hdi import scraper as _hdi_scraper  # noqa: E402, F401

@@ -7,6 +7,8 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc \
+    chromium chromium-driver xvfb fonts-liberation \
+    libnss3 libgconf-2-4 libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
