@@ -26,3 +26,17 @@ Tıp Merkezi & Poliklinik	TIP_MERKEZI	4
 
 Özel Sağlık Sigortası	OSS	3
 Tamamlayıcı Sağlık Sigortası	TSS	1
+
+
+
+Türkiye	TURKIYE	turkiye-sigorta	32
+A Network	Türkiye	Özel Sağlık Sigortası	3876	
+A+ Network	Türkiye	Özel Sağlık Sigortası	3875	
+B Network	Türkiye	Özel Sağlık Sigortası	3877	
+C Network	Türkiye	Özel Sağlık Sigortası	3878	
+Altın Network	Türkiye	Tamamlayıcı Sağlık Sigortası	3872	
+Bronz Network	Türkiye	Tamamlayıcı Sağlık Sigortası	3874	
+Platin Network	Türkiye	Tamamlayıcı Sağlık Sigortası	3873	
+
+
+{"id": 68764, "name": "Abat Cerrahi Tıp Merkezi", "network_ids": [22, 23, 473, 3814, 3815, 3816, 414, 3811, 3812, 149, 150, 121, 3700, 3482, 3483, 3484, 3708, 3709, 3820, 3821, 106, 107, 109, 110, 111, 216, 217, 218, 219, 220, 221, 224, 225, 478, 329, 330, 331, 332, 333, 334, 3817, 3818, 3827, 3828, 3829, 3830, 3831, 3872, 3873, 3874, 3875, 3876, 3877, 3878, 3798, 3799, 2, 3, 4, 3860, 3861, 3862], "company_count": 8, "district_name": "Beylikdüzü", "hospital_type": {"id": 4, "name": "Tıp Merkezi & Poliklinik"}, "highlighted_name": "<b>abat cerrahi tip merkezi</b>", "has_tss_payment_warn": null}

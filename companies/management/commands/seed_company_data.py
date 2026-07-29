@@ -88,6 +88,16 @@ NETWORKS = [
     # Acıbadem - Tamamlayıcı Sağlık Sigortası (TSS) Networkleri
     {"company_code": "ACIBADEM", "product_type_code": "TSS", "name": "T1 Network", "external_id": "216"},
     {"company_code": "ACIBADEM", "product_type_code": "TSS", "name": "T2 Network", "external_id": "217"},
+
+    # Türkiye Sigorta - Özel Sağlık Sigortası (ÖSS) Networkleri
+    {"company_code": "TURKIYE", "product_type_code": "OSS", "name": "A Network", "external_id": "3876"},
+    {"company_code": "TURKIYE", "product_type_code": "OSS", "name": "A+ Network", "external_id": "3875"},
+    {"company_code": "TURKIYE", "product_type_code": "OSS", "name": "B Network", "external_id": "3877"},
+    {"company_code": "TURKIYE", "product_type_code": "OSS", "name": "C Network", "external_id": "3878"},
+    # Türkiye Sigorta - Tamamlayıcı Sağlık Sigortası (TSS) Networkleri
+    {"company_code": "TURKIYE", "product_type_code": "TSS", "name": "Altın Network", "external_id": "3872"},
+    {"company_code": "TURKIYE", "product_type_code": "TSS", "name": "Bronz Network", "external_id": "3874"},
+    {"company_code": "TURKIYE", "product_type_code": "TSS", "name": "Platin Network", "external_id": "3873"},
 ]
 
 # 3. Poliçe Uygulamaları (Policy Applications) Listesi
