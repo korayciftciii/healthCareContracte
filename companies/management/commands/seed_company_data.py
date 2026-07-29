@@ -77,6 +77,17 @@ NETWORKS = [
     # HDI - Hibrit Ürün (538): Hem TSS hem ÖSS kapsamında — her iki network'e eklenir
     {"company_code": "HDI", "product_type_code": "TSS", "name": "HDI SİZE ÖZEL 2Sİ 1 ARADA SAĞLIK (TSS)", "external_id": "538"},
     {"company_code": "HDI", "product_type_code": "OSS", "name": "HDI SİZE ÖZEL 2Sİ 1 ARADA SAĞLIK (ÖSS)", "external_id": "538"},
+
+    # Acıbadem - Özel Sağlık Sigortası (ÖSS) Networkleri
+    {"company_code": "ACIBADEM", "product_type_code": "OSS", "name": "A1 Network", "external_id": "106"},
+    {"company_code": "ACIBADEM", "product_type_code": "OSS", "name": "A2 Network", "external_id": "107"},
+    {"company_code": "ACIBADEM", "product_type_code": "OSS", "name": "A3 Network", "external_id": "108"},
+    {"company_code": "ACIBADEM", "product_type_code": "OSS", "name": "A4 Network", "external_id": "109"},
+    {"company_code": "ACIBADEM", "product_type_code": "OSS", "name": "A5 Network", "external_id": "110"},
+    {"company_code": "ACIBADEM", "product_type_code": "OSS", "name": "A6 Network", "external_id": "111"},
+    # Acıbadem - Tamamlayıcı Sağlık Sigortası (TSS) Networkleri
+    {"company_code": "ACIBADEM", "product_type_code": "TSS", "name": "T1 Network", "external_id": "216"},
+    {"company_code": "ACIBADEM", "product_type_code": "TSS", "name": "T2 Network", "external_id": "217"},
 ]
 
 # 3. Poliçe Uygulamaları (Policy Applications) Listesi
