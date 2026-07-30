@@ -11,6 +11,18 @@ from scraper.models import ScrapeJob
 from scraper.sources.base import BaseScraper
 
 
+# Eski API'de AXA TSS network isimleri "Sağlığım Tamam Nw." ve "Sağlığım Tamam B Nw."
+# olarak geliyor; ikisi de neredeyse aynı kurum kümesini kapsıyor ve bizdeki
+# "Sağlığım Tamam Sigortası" (17) ile "Grup Sağlığım Tamam Sigortası" (81) network'lerinin
+# ikisine birden karşılık geliyor — bu yüzden gelen kurumlar her iki network'e de eklenir.
+LEGACY_NETWORK_NAME_ALIASES = {
+    "AXA": {
+        "Sağlığım Tamam Nw.": ["Sağlığım Tamam Sigortası", "Grup Sağlığım Tamam Sigortası"],
+        "Sağlığım Tamam B Nw.": ["Sağlığım Tamam Sigortası", "Grup Sağlığım Tamam Sigortası"],
+    },
+}
+
+
 class _LegacyImporter(BaseScraper):
     """BaseScraper'ın ortak _upsert_institution/_upsert_contract metodlarını
     kullanmak için tanımlanmış boş kabuk. run() bu komutta kullanılmaz."""
@@ -210,23 +222,31 @@ class Command(BaseCommand):
 
         # 2. Network eşleştirmesi — eski API'nin embedded 'networks' listesindeki
         # her isim, companies.Network tablosunda (company, product_type, name) ile aranır.
-        # Bulunamayan network varsa (henüz seed edilmemiş) o kurum atlanır ki
-        # sessizce eksik network'le kontrat oluşmasın.
+        # Bazı şirketlerde eski isim bizdeki kanonik isimden farklı olabiliyor (veya
+        # birden fazla kanonik network'e karşılık gelebiliyor) — bu durumda
+        # LEGACY_NETWORK_NAME_ALIASES üzerinden eşlenir. Bulunamayan network varsa
+        # (henüz seed edilmemiş) o kurum atlanır ki sessizce eksik network'le kontrat
+        # oluşmasın.
+        aliases = LEGACY_NETWORK_NAME_ALIASES.get(company.code, {})
         networks = []
+        seen_network_ids = set()
         for net in row.get("networks") or []:
             net_product_type = ProductType.objects.filter(code=net.get("product_type")).first()
             if net_product_type is None:
                 continue
-            network = Network.objects.filter(
-                company=company, product_type=net_product_type, name=net.get("name"),
-            ).first()
-            if network is None:
-                self.job.append_log(
-                    f"  ⚠ Network bulunamadı: {company.code}/{net.get('product_type')} - "
-                    f"'{net.get('name')}' (kurum: {inst.name}) — seed_company_data.py'ye eklenmeli."
-                )
-                continue
-            networks.append(network)
+            for target_name in aliases.get(net.get("name"), [net.get("name")]):
+                network = Network.objects.filter(
+                    company=company, product_type=net_product_type, name=target_name,
+                ).first()
+                if network is None:
+                    self.job.append_log(
+                        f"  ⚠ Network bulunamadı: {company.code}/{net.get('product_type')} - "
+                        f"'{target_name}' (kurum: {inst.name}) — seed_company_data.py'ye eklenmeli."
+                    )
+                    continue
+                if network.id not in seen_network_ids:
+                    seen_network_ids.add(network.id)
+                    networks.append(network)
 
         # 3. Kurum anlaşması upsert — eski API'nin external_id'si (kaynak sitedeki
         # fiziksel kurum ID'si), (company, product_type) ile birlikte unique.
