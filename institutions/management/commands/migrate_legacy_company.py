@@ -20,6 +20,15 @@ LEGACY_NETWORK_NAME_ALIASES = {
         "Sağlığım Tamam Nw.": ["Sağlığım Tamam Sigortası", "Grup Sağlığım Tamam Sigortası"],
         "Sağlığım Tamam B Nw.": ["Sağlığım Tamam Sigortası", "Grup Sağlığım Tamam Sigortası"],
     },
+    # Eski API'de HDI ÖSS network'leri "A1 Network".."A4 Network" (id 330-333) olarak
+    # geliyor; bizdeki seed_company_data.py'de aynı network'ler "Size Özel Sağlık A1".."A4"
+    # (external_id 385/397/400/401) adıyla kayıtlı — isim eşlemesi burada yapılır.
+    "HDI": {
+        "A1 Network": ["Size Özel Sağlık A1"],
+        "A2 Network": ["Size Özel Sağlık A2"],
+        "A3 Network": ["Size Özel Sağlık A3"],
+        "A4 Network": ["Size Özel Sağlık A4"],
+    },
 }
 
 
